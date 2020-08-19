@@ -5,7 +5,15 @@
 [![GoDoc](https://godoc.org/github.com/romnnn/go-grpc-service?status.svg)](https://godoc.org/github.com/romnnn/go-grpc-service)  [![Test Coverage](https://codecov.io/gh/romnnn/go-grpc-service/branch/master/graph/badge.svg)](https://codecov.io/gh/romnnn/go-grpc-service)
 [![Release](https://img.shields.io/github/release/romnnn/go-grpc-service)](https://github.com/romnnn/go-grpc-service/releases/latest)
 
-Your description goes here...
+Optionated base service for gRPC (and HTTP) server implementations in `golang` using `google.golang.org/grpc`.
+
+The main additional benefits of this base service include:
+
+- Centralized and extensible hook system for configuring services
+- Support for gRPC method reflection, e.g. custom proto method options are injected to the method context via interceptors (see the sample service)
+- Unified logging and setup
+- Boilerplate code for dialing other gRPC services provided
+- Abstraction layer around health checking for gRPC and HTTP
 
 
 
@@ -15,7 +23,11 @@ Your description goes here...
 import "github.com/romnnn/go-grpc-service"
 ```
 
-For more examples, see `examples/`.
+For a full example, check out the sample service in `examples/`:
+
+```bash
+go run github.com/romnnn/go-grpc-service/examples/sample-service --port 8080
+```
 
 
 #### Development
@@ -51,6 +63,15 @@ Note for Maintainers: After merging changes, tag your commits with a new version
 ```bash
 bump2version (major | minor | patch)
 git push --follow-tags
+```
+
+If you want to (re-)generate the sample grpc service, make sure to install `protoc`, `protoc-gen-go` and `protoc-gen-go-grpc`.
+You can then use the provided script:
+```bash
+apt install -y protobuf-compiler
+go install google.golang.org/protobuf/cmd/protoc-gen-go
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc
+invoke compile-proto
 ```
 
 #### Note

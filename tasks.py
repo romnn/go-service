@@ -98,6 +98,19 @@ def build(c):
 
 
 
+@task
+def compile_proto(c):
+    """Build the project
+    """
+    c.run(str(" ").join([
+        "protoc",
+        "--proto_path=%s" % ROOT_DIR,
+        "--go_out=gen/sample_service",
+        "--go-grpc_out=gen/sample_service",
+        "--go_opt=paths=source_relative",
+        "--go-grpc_opt=paths=source_relative",
+        os.path.join(ROOT_DIR, "sample_service.proto"),
+    ]))
 
 
 @task
