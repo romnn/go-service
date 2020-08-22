@@ -106,7 +106,8 @@ func WrapServerStream(stream grpc.ServerStream) *WrappedServerStream {
 	return &WrappedServerStream{ServerStream: stream, WrappedContext: stream.Context()}
 }
 
-func (bs *Service) bootstrap(cliCtx *cli.Context) error {
+// Bootstrap ...
+func (bs *Service) Bootstrap(cliCtx *cli.Context) error {
 	bs.ConfigureLogging(cliCtx)
 	bs.SetHealthy(false)
 	if bs.PostBootstrapHook != nil {
@@ -159,7 +160,7 @@ func (bs *Service) BootstrapGrpc(cliCtx *cli.Context, opts *BootstrapGrpcOptions
 		grpc.MaxSendMsgSize(maxMsgSize),
 	)
 	bs.SetupGrpcHealthCheck(cliCtx)
-	return bs.bootstrap(cliCtx)
+	return bs.Bootstrap(cliCtx)
 }
 
 // ServeGrpc prepares an http service
@@ -192,7 +193,7 @@ func (bs *Service) ServeGrpc(listener net.Listener) error {
 func (bs *Service) BootstrapHTTP(cliCtx *cli.Context, handler *gin.Engine) error {
 	bs.HTTPServer = &http.Server{Handler: handler}
 	bs.SetupHTTPHealthCheck(cliCtx, handler, bs.HTTPHealthCheckURL)
-	return bs.bootstrap(cliCtx)
+	return bs.Bootstrap(cliCtx)
 }
 
 // SetupGrpcHealthCheck ...
