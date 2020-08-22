@@ -57,6 +57,9 @@ type Service struct {
 	PostBootstrapHook func(bs *Service) error
 	ConnectHook       func(bs *Service) error
 
+	// Configuration
+	HTTPHealthCheckURL string
+
 	methods map[GrpcMethodName]pref.MethodDescriptor
 }
 
@@ -188,7 +191,7 @@ func (bs *Service) ServeGrpc(listener net.Listener) error {
 // BootstrapHTTP prepares an http service
 func (bs *Service) BootstrapHTTP(cliCtx *cli.Context, handler *gin.Engine) error {
 	bs.HTTPServer = &http.Server{Handler: handler}
-	bs.SetupHTTPHealthCheck(cliCtx, handler)
+	bs.SetupHTTPHealthCheck(cliCtx, handler, bs.HTTPHealthCheckURL)
 	return bs.bootstrap(cliCtx)
 }
 
@@ -199,8 +202,11 @@ func (bs *Service) SetupGrpcHealthCheck(cliCtx *cli.Context) {
 }
 
 // SetupHTTPHealthCheck ...
-func (bs *Service) SetupHTTPHealthCheck(cliCtx *cli.Context, handler *gin.Engine) {
-	handler.GET("healthz", func(c *gin.Context) {
+func (bs *Service) SetupHTTPHealthCheck(cliCtx *cli.Context, handler *gin.Engine, url string) {
+	if url == "" {
+		url = "healthz"
+	}
+	handler.GET(url, func(c *gin.Context) {
 		if bs.Healthy {
 			c.String(http.StatusOK, "ok")
 		} else {
