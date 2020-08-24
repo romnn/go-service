@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/labstack/echo/v4"
 	"github.com/uber/jaeger-lib/metrics/prometheus"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -17,6 +17,10 @@ import (
 
 	jaegercfg "github.com/uber/jaeger-client-go/config"
 
+	"github.com/labstack/echo/v4/middleware"
+	glog "github.com/labstack/gommon/log"
+	logmiddleware "github.com/neko-neko/echo-logrus/v2"
+	echolog "github.com/neko-neko/echo-logrus/v2/log"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"google.golang.org/grpc"
@@ -46,6 +50,7 @@ type Service struct {
 	Name         string
 	Version      string
 	BuildTime    string
+	Echo         *echo.Echo
 	HTTPServer   *http.Server
 	GrpcServer   *grpc.Server
 	Health       *health.Server
@@ -190,7 +195,12 @@ func (bs *Service) ServeGrpc(listener net.Listener) error {
 }
 
 // BootstrapHTTP prepares an http service
-func (bs *Service) BootstrapHTTP(cliCtx *cli.Context, handler *gin.Engine) error {
+func (bs *Service) BootstrapHTTP(cliCtx *cli.Context, handler *echo.Echo) error {
+	handler.HideBanner = true
+	handler.Logger = echolog.Logger()
+	handler.Use(logmiddleware.Logger())
+	handler.Use(middleware.Recover())
+	bs.Echo = handler
 	bs.HTTPServer = &http.Server{Handler: handler}
 	bs.SetupHTTPHealthCheck(cliCtx, handler, bs.HTTPHealthCheckURL)
 	return bs.Bootstrap(cliCtx)
@@ -203,16 +213,17 @@ func (bs *Service) SetupGrpcHealthCheck(cliCtx *cli.Context) {
 }
 
 // SetupHTTPHealthCheck ...
-func (bs *Service) SetupHTTPHealthCheck(cliCtx *cli.Context, handler *gin.Engine, url string) {
+func (bs *Service) SetupHTTPHealthCheck(cliCtx *cli.Context, handler *echo.Echo, url string) {
 	if url == "" {
-		url = "healthz"
+		url = "/healthz"
 	}
-	handler.GET(url, func(c *gin.Context) {
+	handler.GET(url, func(c echo.Context) error {
 		if bs.Healthy {
 			c.String(http.StatusOK, "ok")
 		} else {
 			c.String(http.StatusServiceUnavailable, "service is not available")
 		}
+		return nil
 	})
 }
 
@@ -228,6 +239,25 @@ func (bs *Service) SetHealthy(healthy bool) {
 			bs.Health.SetServingStatus(bs.Name, healthpb.HealthCheckResponse_NOT_SERVING)
 		}
 	}
+}
+
+// SetLogLevel ...
+func (bs *Service) SetLogLevel(level log.Level) {
+	log.SetLevel(level)
+	if l, ok := map[log.Level]glog.Lvl{
+		log.DebugLevel: glog.DEBUG,
+		log.InfoLevel:  glog.INFO,
+		log.WarnLevel:  glog.WARN,
+		log.ErrorLevel: glog.ERROR,
+	}[level]; ok {
+		echolog.Logger().SetLevel(l)
+	}
+}
+
+// SetLogFormat ...
+func (bs *Service) SetLogFormat(format log.Formatter) {
+	// e.g. &log.JSONFormatter{TimestampFormat: time.RFC3339}
+	echolog.Logger().SetFormatter(format)
 }
 
 // Connect connects to databases and other services
@@ -261,7 +291,7 @@ func (bs *Service) ConfigureLogging(cliCtx *cli.Context) {
 		log.Warnf("log level %q does not exist", cliCtx.String("log"))
 		level = log.InfoLevel
 	}
-	log.SetLevel(level)
+	bs.SetLogLevel(level)
 }
 
 // ConfigureTracing ...
@@ -269,7 +299,7 @@ func (bs *Service) ConfigureTracing(cliCtx *cli.Context) (io.Closer, error) {
 	cfg := jaegercfg.Configuration{}
 	metricsFactory := prometheus.New()
 	closer, err := cfg.InitGlobalTracer(
-		"upbound",
+		bs.Name,
 		jaegercfg.Metrics(metricsFactory),
 	)
 	if err != nil {

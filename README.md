@@ -26,8 +26,20 @@ import "github.com/romnnn/go-grpc-service"
 For a full example, check out the sample service in `examples/`:
 
 ```bash
-go run github.com/romnnn/go-grpc-service/examples/sample-service --port 8080
+# check out the sample GRPC service
+go run github.com/romnnn/go-grpc-service/examples/sample-grpc-service --port 8080
+# check out the sample HTTP service
+go run github.com/romnnn/go-grpc-service/examples/sample-http-service --port 8080
 ```
+
+#### References
+
+- Set the logging format for HTTP services:
+    ```golang
+    s.Service.SetLogFormat(&log.JSONFormatter{
+		TimestampFormat: time.RFC3339,
+	})
+    ```
 
 
 #### Development
