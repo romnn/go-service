@@ -97,7 +97,7 @@ func main() {
 				return fmt.Errorf("failed to listen: %v", err)
 			}
 
-			if err := server.Service.BootstrapHTTP(ctx, server.setupRouter()); err != nil {
+			if err := server.Service.BootstrapHTTP(ctx, server.setupRouter(), nil); err != nil {
 				return err
 			}
 			return server.Serve(ctx, listener)

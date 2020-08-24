@@ -20,8 +20,8 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	glog "github.com/labstack/gommon/log"
 	logmiddleware "github.com/neko-neko/echo-logrus/v2"
-	echolog "github.com/neko-neko/echo-logrus/v2/log"
-	log "github.com/sirupsen/logrus"
+	log "github.com/neko-neko/echo-logrus/v2/log"
+	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -78,6 +78,9 @@ func (bs *Service) GracefulStop() {
 	defer cancel()
 	if bs.GrpcServer != nil {
 		bs.GrpcServer.GracefulStop()
+	}
+	if bs.Echo != nil {
+		_ = bs.Echo.Shutdown(ctx)
 	}
 	if bs.HTTPServer != nil {
 		_ = bs.HTTPServer.Shutdown(ctx)
@@ -195,11 +198,12 @@ func (bs *Service) ServeGrpc(listener net.Listener) error {
 }
 
 // BootstrapHTTP prepares an http service
-func (bs *Service) BootstrapHTTP(cliCtx *cli.Context, handler *echo.Echo) error {
+func (bs *Service) BootstrapHTTP(cliCtx *cli.Context, handler *echo.Echo, mws []echo.MiddlewareFunc) error {
 	handler.HideBanner = true
-	handler.Logger = echolog.Logger()
-	handler.Use(logmiddleware.Logger())
-	handler.Use(middleware.Recover())
+	handler.Logger = log.Logger()
+	for _, mw := range append(mws, []echo.MiddlewareFunc{logmiddleware.Logger(), middleware.Recover()}...) {
+		handler.Use(mw)
+	}
 	bs.Echo = handler
 	bs.HTTPServer = &http.Server{Handler: handler}
 	bs.SetupHTTPHealthCheck(cliCtx, handler, bs.HTTPHealthCheckURL)
@@ -242,22 +246,22 @@ func (bs *Service) SetHealthy(healthy bool) {
 }
 
 // SetLogLevel ...
-func (bs *Service) SetLogLevel(level log.Level) {
-	log.SetLevel(level)
-	if l, ok := map[log.Level]glog.Lvl{
-		log.DebugLevel: glog.DEBUG,
-		log.InfoLevel:  glog.INFO,
-		log.WarnLevel:  glog.WARN,
-		log.ErrorLevel: glog.ERROR,
+func (bs *Service) SetLogLevel(level logrus.Level) {
+	logrus.SetLevel(level)
+	if l, ok := map[logrus.Level]glog.Lvl{
+		logrus.DebugLevel: glog.DEBUG,
+		logrus.InfoLevel:  glog.INFO,
+		logrus.WarnLevel:  glog.WARN,
+		logrus.ErrorLevel: glog.ERROR,
 	}[level]; ok {
-		echolog.Logger().SetLevel(l)
+		log.Logger().SetLevel(l)
 	}
 }
 
 // SetLogFormat ...
-func (bs *Service) SetLogFormat(format log.Formatter) {
+func (bs *Service) SetLogFormat(format logrus.Formatter) {
 	// e.g. &log.JSONFormatter{TimestampFormat: time.RFC3339}
-	echolog.Logger().SetFormatter(format)
+	log.Logger().SetFormatter(format)
 }
 
 // Connect connects to databases and other services
@@ -286,10 +290,10 @@ func (bs *Service) Dial(cliCtx *cli.Context, host string, port int) (*grpc.Clien
 
 // ConfigureLogging ...
 func (bs *Service) ConfigureLogging(cliCtx *cli.Context) {
-	level, err := log.ParseLevel(cliCtx.String("log"))
+	level, err := logrus.ParseLevel(cliCtx.String("log"))
 	if err != nil {
 		log.Warnf("log level %q does not exist", cliCtx.String("log"))
-		level = log.InfoLevel
+		level = logrus.InfoLevel
 	}
 	bs.SetLogLevel(level)
 }
