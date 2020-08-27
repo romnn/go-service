@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	gogrpcservice "github.com/romnnn/go-grpc-service"
-	pb "github.com/romnnn/go-grpc-service/gen/sample-grpc-service"
+	pb "github.com/romnnn/go-grpc-service/gen/sample-services"
 
 	"github.com/romnnn/flags4urfavecli/flags"
 	log "github.com/sirupsen/logrus"

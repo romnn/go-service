@@ -1,6 +1,6 @@
 syntax = "proto3";
 package samples;
-option go_package = "github.com/romnnn/go-grpc-service/sample-grpc-service;sample_grpc_service";
+option go_package = "github.com/romnnn/go-grpc-service/sample-services;sample_services";
 
 import "google/protobuf/descriptor.proto";
 

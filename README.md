@@ -30,6 +30,8 @@ For a full example, check out the sample service in `examples/`:
 go run github.com/romnnn/go-grpc-service/examples/sample-grpc-service --port 8080
 # check out the sample HTTP service
 go run github.com/romnnn/go-grpc-service/examples/sample-http-service --port 8080
+# check out the sample JWT authentication GRPC service
+go run github.com/romnnn/go-grpc-service/examples/sample-auth-service --port 8080 --generate
 ```
 
 #### References

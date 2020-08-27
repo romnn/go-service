@@ -1,0 +1,29 @@
+syntax = "proto3";
+package samples;
+option go_package = "github.com/romnnn/go-grpc-service/sample-services;sample_services";
+
+service Authentication {
+    rpc Login(UserLoginRequest) returns (AuthenticationToken) {}
+    rpc Validate(TokenValidationRequest) returns (TokenValidationResult) {}
+}
+
+message UserLoginRequest {
+    string email = 1;
+    string password = 2;
+}
+
+message TokenValidationRequest {
+    string token = 1;
+}
+
+message  TokenValidationResult {
+    bool valid = 1;
+    string user_id = 2;
+}
+
+message AuthenticationToken {
+    string token = 1;
+    string user_id = 2;
+    string email = 3;
+    int64 expiration = 4;
+}
