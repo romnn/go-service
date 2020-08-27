@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 
+	// "context"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/lestrrat-go/jwx/jwk"
+	// log "github.com/sirupsen/logrus"
 )
 
 // Authenticator ...
@@ -30,13 +33,22 @@ func (a *Authenticator) Validate(token string, claims Claims) (bool, *jwt.Token,
 	validatedToken, err := jwt.ParseWithClaims(token, claims, func(t *jwt.Token) (interface{}, error) {
 		keyID, ok := t.Header["kid"].(string)
 		if !ok {
-			return nil, errors.New("expecting JWT header to have string kid")
+			return nil, errors.New("expecting JWT header to have kid of type string")
+		}
+
+		keyAlg, ok := t.Header["alg"].(string)
+		if !ok {
+			return nil, errors.New("expecting JWT header to have alg of type string")
+		}
+
+		if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", keyAlg)
 		}
 
 		if matchingKeys := a.JwkSet.LookupKeyID(keyID); len(matchingKeys) == 1 {
 			var key rsa.PublicKey
 			err := matchingKeys[0].Raw(&key)
-			return key, err
+			return &key, err
 		}
 		return nil, fmt.Errorf("unable to find key %q", keyID)
 	})

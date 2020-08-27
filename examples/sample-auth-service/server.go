@@ -11,7 +11,7 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	gogrpcservice "github.com/romnnn/go-grpc-service"
-	auth "github.com/romnnn/go-grpc-service/auth"
+	"github.com/romnnn/go-grpc-service/auth"
 	pb "github.com/romnnn/go-grpc-service/gen/sample-services"
 
 	"github.com/romnnn/flags4urfavecli/flags"
@@ -30,11 +30,27 @@ var BuildTime string = ""
 
 var server AuthServer
 
+// User ...
+type User struct {
+	ID             string
+	Username       string
+	Email          string
+	HashedPassword string
+}
+
+// UserMgmtBackend ...
+type UserMgmtBackend interface {
+	GetUserByEmail(ctx context.Context, email string) (*User, error)
+	AddUser(ctx context.Context, user *User) (*User, error)
+	RemoveUserByEmail(ctx context.Context, email string) (*User, error)
+}
+
 // AuthServer ...
 type AuthServer struct {
 	gogrpcservice.Service
 	pb.UnimplementedAuthenticationServer
-	authenticator *auth.Authenticator
+	Authenticator *auth.Authenticator
+	UserBackend   UserMgmtBackend
 }
 
 // Shutdown ...
@@ -58,8 +74,9 @@ func (claims *MyClaims) GetStandardClaims() *jwt.StandardClaims {
 
 // Validate checks a token if it is valid (e.g. has not expired)
 func (s *AuthServer) Validate(ctx context.Context, in *pb.TokenValidationRequest) (*pb.TokenValidationResult, error) {
-	valid, token, err := s.authenticator.Validate(in.GetToken(), &MyClaims{})
+	valid, token, err := s.Authenticator.Validate(in.GetToken(), &MyClaims{})
 	if err != nil {
+		log.Error(err)
 		return &pb.TokenValidationResult{Valid: false}, status.Error(codes.Internal, "Failed to validate token")
 	}
 	if claims, ok := token.Claims.(*MyClaims); ok && valid {
@@ -69,42 +86,29 @@ func (s *AuthServer) Validate(ctx context.Context, in *pb.TokenValidationRequest
 	return &pb.TokenValidationResult{Valid: false}, nil
 }
 
-type mockUser struct {
-	id             string
-	username       string
-	email          string
-	hashedPassword string
-}
-
-func mockGetUserByEmail(ctx context.Context, email string) (*mockUser, error) {
-	return &mockUser{
-		username:       "Thomas Mueller",
-		email:          "t.mueller@fcb.bavaria",
-		hashedPassword: "123",
-	}, nil
-}
-
 // Login logs in a user
 func (s *AuthServer) Login(ctx context.Context, in *pb.UserLoginRequest) (*pb.AuthenticationToken, error) {
-	user, err := mockGetUserByEmail(ctx, in.GetEmail())
+	user, err := s.UserBackend.GetUserByEmail(ctx, in.GetEmail())
 	if err != nil {
+		log.Error(err)
 		return nil, status.Error(codes.NotFound, "no such user")
 	}
-	if !auth.CheckPasswordHash(in.GetPassword(), user.hashedPassword) {
+	if !auth.CheckPasswordHash(in.GetPassword(), user.HashedPassword) {
 		return nil, status.Error(codes.Unauthenticated, "unauthorized")
 	}
 
 	// authenticated
-	token, expireSeconds, err := s.authenticator.Login(&MyClaims{
-		UserID: user.id,
+	token, expireSeconds, err := s.Authenticator.Login(&MyClaims{
+		UserID: user.ID,
 	})
 	if err != nil {
+		log.Error(err)
 		return nil, status.Error(codes.Internal, "error while signing token")
 	}
 	return &pb.AuthenticationToken{
 		Token:      token,
-		Email:      user.email,
-		UserId:     user.id,
+		Email:      user.Email,
+		UserId:     user.ID,
 		Expiration: expireSeconds,
 	}, nil
 }
@@ -152,7 +156,7 @@ func main() {
 						return nil
 					},
 				},
-				authenticator: &auth.Authenticator{
+				Authenticator: &auth.Authenticator{
 					ExpireSeconds: int64(ctx.Int("expire-sec")),
 					Issuer:        ctx.String("issuer"),
 					Audience:      ctx.String("audience"),
@@ -164,7 +168,7 @@ func main() {
 				return fmt.Errorf("failed to listen: %v", err)
 			}
 
-			if err := server.authenticator.SetupKeys(auth.AuthenticatorKeyConfig{}.Parse(ctx)); err != nil {
+			if err := server.Authenticator.SetupKeys(auth.AuthenticatorKeyConfig{}.Parse(ctx)); err != nil {
 				return err
 			}
 			if err := server.Service.BootstrapGrpc(ctx, nil); err != nil {

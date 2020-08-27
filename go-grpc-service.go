@@ -290,6 +290,10 @@ func (bs *Service) Dial(cliCtx *cli.Context, host string, port int) (*grpc.Clien
 
 // ConfigureLogging ...
 func (bs *Service) ConfigureLogging(cliCtx *cli.Context) {
+	if cliCtx == nil {
+		bs.SetLogLevel(logrus.InfoLevel)
+		return
+	}
 	level, err := logrus.ParseLevel(cliCtx.String("log"))
 	if err != nil {
 		log.Warnf("log level %q does not exist", cliCtx.String("log"))

@@ -4,8 +4,8 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
-	"fmt"
 	"math/big"
 	"time"
 
@@ -25,6 +25,15 @@ func CheckPasswordHash(password, hash string) bool {
 	return err == nil
 }
 
+// JWK ...
+type JWK struct {
+	KID       string `json:"kid"`
+	Algorithm string `json:"alg"`
+	E         string `json:"e"`
+	KTY       string `json:"kty"`
+	N         string `json:"n"`
+}
+
 // ToJWKS converts a RSA public key to a JSON encoded jwk set
 func ToJWKS(pub *rsa.PublicKey) ([]byte, error) {
 	// See https://github.com/golang/crypto/blob/master/acme/jws.go#L90
@@ -33,10 +42,13 @@ func ToJWKS(pub *rsa.PublicKey) ([]byte, error) {
 	e := big.NewInt(int64(pub.E))
 	// Field order is important.
 	// See https://tools.ietf.org/html/rfc7638#section-3.3 for details.
-	return []byte(fmt.Sprintf(`{"e":"%s","kty":"RSA","n":"%s"}`,
-		base64.RawURLEncoding.EncodeToString(e.Bytes()),
-		base64.RawURLEncoding.EncodeToString(n.Bytes()),
-	)), nil
+	return json.Marshal(JWK{
+		KID:       "0",
+		Algorithm: "RS256",
+		E:         base64.RawURLEncoding.EncodeToString(e.Bytes()),
+		KTY:       "RSA",
+		N:         base64.RawURLEncoding.EncodeToString(n.Bytes()),
+	})
 }
 
 // ToPEM converts a RSA private key to PEM format
