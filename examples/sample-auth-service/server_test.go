@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"testing"
@@ -39,10 +40,10 @@ func setUpAuthServer(t *testing.T, listener *bufconn.Listener) (*AuthServer, err
 		UserBackend: &MockUserMgmtBackend{},
 	}
 	if err := server.Authenticator.SetupKeys(&auth.AuthenticatorKeyConfig{Generate: true}); err != nil {
-		t.Fatalf("failed to setup keys: %v", err)
+		return nil, fmt.Errorf("failed to setup keys: %v", err)
 	}
 	if err := server.Service.BootstrapGrpc(nil, nil); err != nil {
-		t.Fatalf("failed to setup grpc server: %v", err)
+		return nil, fmt.Errorf("failed to setup grpc server: %v", err)
 	}
 
 	go func() {

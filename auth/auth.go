@@ -5,11 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	// "context"
-
 	"github.com/dgrijalva/jwt-go"
 	"github.com/lestrrat-go/jwx/jwk"
-	// log "github.com/sirupsen/logrus"
 )
 
 // Authenticator ...
