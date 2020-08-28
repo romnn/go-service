@@ -102,6 +102,8 @@ def build(c):
 def compile_proto(c):
     """Build the project
     """
+    sample_grpc_service = os.path.join(ROOT_DIR, "sample-grpc-service.proto")
+    sample_auth_service = os.path.join(ROOT_DIR, "sample-auth-service.proto")
     c.run(str(" ").join([
         "protoc",
         "--proto_path=%s" % ROOT_DIR,
@@ -109,7 +111,8 @@ def compile_proto(c):
         "--go-grpc_out=gen/sample-services",
         "--go_opt=paths=source_relative",
         "--go-grpc_opt=paths=source_relative",
-        *[os.path.join(ROOT_DIR, "sample-grpc-service.proto"), os.path.join(ROOT_DIR, "sample-auth-service.proto")],
+        sample_grpc_service,
+        sample_auth_service,
     ]))
 
 
