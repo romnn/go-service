@@ -17,7 +17,7 @@ func DefaultCLIFlags(options *DefaultCLIFlagsOptions) []cli.Flag {
 
 	// Sensible defaults
 	if options.ExpireSec == 0 {
-		options.ExpireSec = 7 * 24 * 60 * 60
+		options.ExpireSec = 1 * 24 * 60 * 60 // 1 day
 	}
 
 	return []cli.Flag{
