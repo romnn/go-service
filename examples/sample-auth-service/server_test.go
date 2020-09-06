@@ -42,7 +42,7 @@ func setUpAuthServer(t *testing.T, listener *bufconn.Listener) (*AuthServer, err
 	if err := server.Authenticator.SetupKeys(&auth.AuthenticatorKeyConfig{Generate: true}); err != nil {
 		return nil, fmt.Errorf("failed to setup keys: %v", err)
 	}
-	if err := server.Service.BootstrapGrpc(nil, nil); err != nil {
+	if err := server.Service.BootstrapGrpc(context.Background(), nil, nil); err != nil {
 		return nil, fmt.Errorf("failed to setup grpc server: %v", err)
 	}
 

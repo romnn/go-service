@@ -150,7 +150,7 @@ type BootstrapGrpcOptions struct {
 }
 
 // BootstrapGrpc prepares a grpc service
-func (bs *Service) BootstrapGrpc(cliCtx *cli.Context, opts *BootstrapGrpcOptions) error {
+func (bs *Service) BootstrapGrpc(ctx context.Context, cliCtx *cli.Context, opts *BootstrapGrpcOptions) error {
 	usi := grpc.UnaryInterceptor(bs.grpcUnaryInterceptor)
 	if opts != nil && opts.USI != nil {
 		usi = grpc.ChainUnaryInterceptor(bs.grpcUnaryInterceptor, opts.USI)
@@ -167,7 +167,7 @@ func (bs *Service) BootstrapGrpc(cliCtx *cli.Context, opts *BootstrapGrpcOptions
 		grpc.MaxRecvMsgSize(maxMsgSize),
 		grpc.MaxSendMsgSize(maxMsgSize),
 	)
-	bs.SetupGrpcHealthCheck(cliCtx)
+	bs.SetupGrpcHealthCheck(ctx)
 	return bs.Bootstrap(cliCtx)
 }
 
@@ -198,7 +198,7 @@ func (bs *Service) ServeGrpc(listener net.Listener) error {
 }
 
 // BootstrapHTTP prepares an http service
-func (bs *Service) BootstrapHTTP(cliCtx *cli.Context, handler *echo.Echo, mws []echo.MiddlewareFunc) error {
+func (bs *Service) BootstrapHTTP(ctx context.Context, cliCtx *cli.Context, handler *echo.Echo, mws []echo.MiddlewareFunc) error {
 	handler.HideBanner = true
 	handler.Logger = log.Logger()
 	for _, mw := range append(mws, []echo.MiddlewareFunc{logmiddleware.Logger(), middleware.Recover()}...) {
@@ -206,18 +206,18 @@ func (bs *Service) BootstrapHTTP(cliCtx *cli.Context, handler *echo.Echo, mws []
 	}
 	bs.Echo = handler
 	bs.HTTPServer = &http.Server{Handler: handler}
-	bs.SetupHTTPHealthCheck(cliCtx, handler, bs.HTTPHealthCheckURL)
+	bs.SetupHTTPHealthCheck(ctx, handler, bs.HTTPHealthCheckURL)
 	return bs.Bootstrap(cliCtx)
 }
 
 // SetupGrpcHealthCheck ...
-func (bs *Service) SetupGrpcHealthCheck(cliCtx *cli.Context) {
+func (bs *Service) SetupGrpcHealthCheck(ctx context.Context) {
 	bs.Health = health.NewServer()
 	healthpb.RegisterHealthServer(bs.GrpcServer, bs.Health)
 }
 
 // SetupHTTPHealthCheck ...
-func (bs *Service) SetupHTTPHealthCheck(cliCtx *cli.Context, handler *echo.Echo, url string) {
+func (bs *Service) SetupHTTPHealthCheck(ctx context.Context, handler *echo.Echo, url string) {
 	if url == "" {
 		url = "/healthz"
 	}
@@ -277,29 +277,37 @@ func (bs *Service) Connect(cliCtx *cli.Context) error {
 	return nil
 }
 
+// DialOptions ...
+type DialOptions struct {
+	TimeoutSec int
+}
+
 // Dial connects to an external GRPC service
-func (bs *Service) Dial(cliCtx *cli.Context, host string, port int) (*grpc.ClientConn, error) {
+func (bs *Service) Dial(ctx context.Context, host string, port int, opts *DialOptions) (*grpc.ClientConn, error) {
+	if opts == nil {
+		opts = &DialOptions{TimeoutSec: 5}
+	}
 	return grpc.Dial(
 		fmt.Sprintf("%s:%d", host, port),
 		grpc.WithInsecure(),
 		grpc.WithBlock(),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize), grpc.MaxCallSendMsgSize(maxMsgSize)),
-		grpc.WithTimeout(time.Duration(5+cliCtx.Int("connection-timeout-sec"))*time.Second),
+		grpc.WithTimeout(time.Duration(5+opts.TimeoutSec)*time.Second),
 	)
 }
 
 // ConfigureLogging ...
 func (bs *Service) ConfigureLogging(cliCtx *cli.Context) {
-	if cliCtx == nil {
-		bs.SetLogLevel(logrus.InfoLevel)
+	if cliCtx != nil {
+		level, err := logrus.ParseLevel(cliCtx.String("log"))
+		if err != nil {
+			log.Warnf("log level %q does not exist", cliCtx.String("log"))
+			level = logrus.InfoLevel
+		}
+		bs.SetLogLevel(level)
 		return
 	}
-	level, err := logrus.ParseLevel(cliCtx.String("log"))
-	if err != nil {
-		log.Warnf("log level %q does not exist", cliCtx.String("log"))
-		level = logrus.InfoLevel
-	}
-	bs.SetLogLevel(level)
+	bs.SetLogLevel(logrus.InfoLevel)
 }
 
 // ConfigureTracing ...

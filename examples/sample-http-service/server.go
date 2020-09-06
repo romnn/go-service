@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"net"
@@ -73,7 +74,7 @@ func main() {
 		Name:  name,
 		Usage: "serves as an example",
 		Flags: cliFlags,
-		Action: func(ctx *cli.Context) error {
+		Action: func(cliCtx *cli.Context) error {
 			server = SampleServer{
 				Service: gogrpcservice.Service{
 					Name:      name,
@@ -89,16 +90,16 @@ func main() {
 					},
 				},
 			}
-			port := fmt.Sprintf(":%d", ctx.Int("port"))
+			port := fmt.Sprintf(":%d", cliCtx.Int("port"))
 			listener, err := net.Listen("tcp", port)
 			if err != nil {
 				return fmt.Errorf("failed to listen: %v", err)
 			}
 
-			if err := server.Service.BootstrapHTTP(ctx, server.setupRouter(), nil); err != nil {
+			if err := server.Service.BootstrapHTTP(context.Background(), cliCtx, server.setupRouter(), nil); err != nil {
 				return err
 			}
-			return server.Serve(ctx, listener)
+			return server.Serve(cliCtx, listener)
 		},
 	}
 	err := app.Run(os.Args)

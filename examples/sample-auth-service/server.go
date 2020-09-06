@@ -145,7 +145,7 @@ func main() {
 		Name:  name,
 		Usage: "serves as an example",
 		Flags: cliFlags,
-		Action: func(ctx *cli.Context) error {
+		Action: func(cliCtx *cli.Context) error {
 			server = AuthServer{
 				Service: gogrpcservice.Service{
 					Name:      name,
@@ -157,24 +157,24 @@ func main() {
 					},
 				},
 				Authenticator: &auth.Authenticator{
-					ExpireSeconds: int64(ctx.Int("expire-sec")),
-					Issuer:        ctx.String("issuer"),
-					Audience:      ctx.String("audience"),
+					ExpireSeconds: int64(cliCtx.Int("expire-sec")),
+					Issuer:        cliCtx.String("issuer"),
+					Audience:      cliCtx.String("audience"),
 				},
 			}
-			port := fmt.Sprintf(":%d", ctx.Int("port"))
+			port := fmt.Sprintf(":%d", cliCtx.Int("port"))
 			listener, err := net.Listen("tcp", port)
 			if err != nil {
 				return fmt.Errorf("failed to listen: %v", err)
 			}
 
-			if err := server.Authenticator.SetupKeys(auth.AuthenticatorKeyConfig{}.Parse(ctx)); err != nil {
+			if err := server.Authenticator.SetupKeys(auth.AuthenticatorKeyConfig{}.Parse(cliCtx)); err != nil {
 				return err
 			}
-			if err := server.Service.BootstrapGrpc(ctx, nil); err != nil {
+			if err := server.Service.BootstrapGrpc(context.Background(), cliCtx, nil); err != nil {
 				return err
 			}
-			return server.Serve(ctx, listener)
+			return server.Serve(cliCtx, listener)
 		},
 	}
 	err := app.Run(os.Args)
