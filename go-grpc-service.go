@@ -283,7 +283,7 @@ type DialOptions struct {
 }
 
 // Dial connects to an external GRPC service
-func (bs *Service) Dial(ctx context.Context, host string, port int, opts *DialOptions) (*grpc.ClientConn, error) {
+func (bs *Service) Dial(ctx context.Context, host string, port uint, opts *DialOptions) (*grpc.ClientConn, error) {
 	if opts == nil {
 		opts = &DialOptions{TimeoutSec: 5}
 	}
