@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -43,6 +44,8 @@ var (
 	NotReady   = status.Error(codes.Unavailable, "the service is currently unavailable")
 	megabyte   = 1024 * 1024
 	maxMsgSize = 500 * megabyte
+
+	logMux = sync.Mutex{}
 )
 
 // Service ...
@@ -247,6 +250,8 @@ func (bs *Service) SetHealthy(healthy bool) {
 
 // SetLogLevel ...
 func (bs *Service) SetLogLevel(level logrus.Level) {
+	logMux.Lock()
+	defer logMux.Unlock()
 	logrus.SetLevel(level)
 	if l, ok := map[logrus.Level]glog.Lvl{
 		logrus.DebugLevel: glog.DEBUG,
