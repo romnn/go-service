@@ -202,9 +202,8 @@ func (bs *Service) ServeHTTP(listener net.Listener) error {
 	// Hook up middlewares
 	if bs.Tracer != nil {
 		bs.SetupHTTPTracingMiddleware()
-	} else if bs.Echo != nil {
-		bs.SetupHTTPMonitoringMiddleware()
 	}
+	bs.SetupHTTPMonitoringMiddleware()
 
 	if err := bs.HTTPServer.Serve(listener); err != nil && err != http.ErrServerClosed {
 		return err
