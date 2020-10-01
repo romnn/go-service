@@ -10,7 +10,10 @@ import (
 	"sync"
 	"time"
 
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_opentracing "github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+
 	"github.com/labstack/echo/v4"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -174,8 +177,16 @@ type BootstrapGrpcOptions struct {
 
 // BootstrapGrpc prepares a grpc service
 func (bs *Service) BootstrapGrpc(ctx context.Context, cliCtx *cli.Context, opts *BootstrapGrpcOptions) error {
-	usi := []grpc.UnaryServerInterceptor{bs.grpcUnaryInterceptor, grpc_prometheus.UnaryServerInterceptor}
-	ssi := []grpc.StreamServerInterceptor{bs.grpcStreamInterceptor, grpc_prometheus.StreamServerInterceptor}
+	usi := []grpc.UnaryServerInterceptor{
+		bs.grpcUnaryInterceptor,
+		grpc_prometheus.UnaryServerInterceptor,
+		grpc_opentracing.UnaryServerInterceptor(grpc_opentracing.WithTracer(bs.Tracer)),
+	}
+	ssi := []grpc.StreamServerInterceptor{
+		bs.grpcStreamInterceptor,
+		grpc_prometheus.StreamServerInterceptor,
+		grpc_opentracing.StreamServerInterceptor(grpc_opentracing.WithTracer(bs.Tracer)),
+	}
 	if opts != nil && opts.USI != nil {
 		usi = append(usi, opts.USI...)
 	}
@@ -286,7 +297,12 @@ func (bs *Service) SetupGrpcMonitoring(ctx context.Context) {
 	}
 	bs.MetricsHTTPServer.Handle(bs.GrpcMetricsURL, promhttp.Handler())
 	go func() {
-		http.ListenAndServe(fmt.Sprintf(":%d", bs.GrpcMetricsPort), bs.MetricsHTTPServer)
+		if err := http.ListenAndServe(fmt.Sprintf(":%d", bs.GrpcMetricsPort), bs.MetricsHTTPServer); err != nil {
+			logMux.Lock()
+			// we need to lock to make sure the logger is not configured concurrently
+			log.Errorf("failed to serve metrics: %v", err)
+			logMux.Unlock()
+		}
 	}()
 }
 
@@ -379,8 +395,16 @@ func (bs *Service) Dial(ctx context.Context, host string, port uint, opts *DialO
 		grpc.WithBlock(),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize), grpc.MaxCallSendMsgSize(maxMsgSize)),
 		grpc.WithTimeout(time.Duration(5+opts.TimeoutSec)*time.Second),
+		// prometheus
 		grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
 		grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
+		// tracing
+		grpc.WithStreamInterceptor(grpc_middleware.ChainStreamClient(
+			grpc_opentracing.StreamClientInterceptor(grpc_opentracing.WithTracer(bs.Tracer)),
+		)),
+		grpc.WithUnaryInterceptor(grpc_middleware.ChainUnaryClient(
+			grpc_opentracing.UnaryClientInterceptor(grpc_opentracing.WithTracer(bs.Tracer)),
+		)),
 	)
 }
 
