@@ -45,7 +45,9 @@ var (
 	megabyte   = 1024 * 1024
 	maxMsgSize = 500 * megabyte
 
-	logMux = sync.Mutex{}
+	logMux    = sync.Mutex{}
+	healthMux = sync.Mutex{}
+	tracerMux = sync.Mutex{}
 )
 
 // Service ...
@@ -66,7 +68,10 @@ type Service struct {
 	ConnectHook       func(bs *Service) error
 
 	// Configuration
-	HTTPHealthCheckURL string
+	HTTPHealthCheckURL      string
+	JaegerAgentHost         string
+	JaegerAgentPort         uint
+	JaegerSamplingServerURL string
 
 	methods map[GrpcMethodName]pref.MethodDescriptor
 }
@@ -236,6 +241,8 @@ func (bs *Service) SetupHTTPHealthCheck(ctx context.Context, handler *echo.Echo,
 
 // SetHealthy ...
 func (bs *Service) SetHealthy(healthy bool) {
+	healthMux.Lock()
+	defer healthMux.Unlock()
 	bs.Healthy = healthy
 	if bs.Health != nil {
 		if healthy {
@@ -265,6 +272,8 @@ func (bs *Service) SetLogLevel(level logrus.Level) {
 
 // SetLogFormat ...
 func (bs *Service) SetLogFormat(format logrus.Formatter) {
+	logMux.Lock()
+	defer logMux.Unlock()
 	// e.g. &log.JSONFormatter{TimestampFormat: time.RFC3339}
 	log.Logger().SetFormatter(format)
 }
@@ -317,7 +326,16 @@ func (bs *Service) ConfigureLogging(cliCtx *cli.Context) {
 
 // ConfigureTracing ...
 func (bs *Service) ConfigureTracing(cliCtx *cli.Context) (io.Closer, error) {
-	cfg := jaegercfg.Configuration{}
+	tracerMux.Lock()
+	defer tracerMux.Unlock()
+	cfg := jaegercfg.Configuration{
+		Sampler: &jaegercfg.SamplerConfig{
+			SamplingServerURL: bs.JaegerSamplingServerURL,
+		},
+		Reporter: &jaegercfg.ReporterConfig{
+			LocalAgentHostPort: fmt.Sprintf("%s:%d", bs.JaegerAgentHost, bs.JaegerAgentPort),
+		},
+	}
 	metricsFactory := prometheus.New()
 	closer, err := cfg.InitGlobalTracer(
 		bs.Name,
