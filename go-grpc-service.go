@@ -10,8 +10,10 @@ import (
 	"sync"
 	"time"
 
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	jaegercfg "github.com/uber/jaeger-client-go/config"
 	"github.com/uber/jaeger-lib/metrics/prometheus"
 	"google.golang.org/grpc/health"
@@ -60,6 +62,7 @@ type Service struct {
 	Version                  string
 	BuildTime                string
 	Echo                     *echo.Echo
+	MetricsHTTPServer        *http.ServeMux
 	HTTPServer               *http.Server
 	GrpcServer               *grpc.Server
 	Health                   *health.Server
@@ -74,12 +77,15 @@ type Service struct {
 	ConnectHook       func(bs *Service) error
 
 	// Configuration
+	GrpcMetricsPort         uint
+	GrpcMetricsURL          string
 	HTTPHealthCheckURL      string
 	JaegerAgentHost         string
 	JaegerAgentPort         uint
 	JaegerSamplingServerURL string
 
-	methods map[GrpcMethodName]pref.MethodDescriptor
+	tracingSetup sync.WaitGroup
+	methods      map[GrpcMethodName]pref.MethodDescriptor
 }
 
 // GracefulStop ...
@@ -162,37 +168,43 @@ func (bs *Service) grpcStreamInterceptor(srv interface{}, ss grpc.ServerStream, 
 
 // BootstrapGrpcOptions ...
 type BootstrapGrpcOptions struct {
-	USI grpc.UnaryServerInterceptor
-	SSI grpc.StreamServerInterceptor
+	USI []grpc.UnaryServerInterceptor
+	SSI []grpc.StreamServerInterceptor
 }
 
 // BootstrapGrpc prepares a grpc service
 func (bs *Service) BootstrapGrpc(ctx context.Context, cliCtx *cli.Context, opts *BootstrapGrpcOptions) error {
-	usi := grpc.UnaryInterceptor(bs.grpcUnaryInterceptor)
+	usi := []grpc.UnaryServerInterceptor{bs.grpcUnaryInterceptor, grpc_prometheus.UnaryServerInterceptor}
+	ssi := []grpc.StreamServerInterceptor{bs.grpcStreamInterceptor, grpc_prometheus.StreamServerInterceptor}
 	if opts != nil && opts.USI != nil {
-		usi = grpc.ChainUnaryInterceptor(bs.grpcUnaryInterceptor, opts.USI)
+		usi = append(usi, opts.USI...)
 	}
-	ssi := grpc.StreamInterceptor(bs.grpcStreamInterceptor)
 	if opts != nil && opts.SSI != nil {
-		ssi = grpc.ChainStreamInterceptor(bs.grpcStreamInterceptor, opts.SSI)
+		ssi = append(ssi, opts.SSI...)
 	}
 
 	bs.methods = make(map[GrpcMethodName]pref.MethodDescriptor)
 	bs.GrpcServer = grpc.NewServer(
-		usi,
-		ssi,
+		grpc.ChainUnaryInterceptor(usi...),
+		grpc.ChainStreamInterceptor(ssi...),
 		grpc.MaxRecvMsgSize(maxMsgSize),
 		grpc.MaxSendMsgSize(maxMsgSize),
 	)
+	bs.SetupGrpcMonitoring(ctx)
 	bs.SetupGrpcHealthCheck(ctx)
 	return bs.Bootstrap(cliCtx)
 }
 
 // ServeGrpc serves an http service
 func (bs *Service) ServeHTTP(listener net.Listener) error {
+	bs.tracingSetup.Wait()
+
 	// Hook up middlewares
-	bs.SetupHTTPMonitoringMiddleware()
-	bs.SetupHTTPTracingMiddleware()
+	if bs.Tracer != nil {
+		bs.SetupHTTPTracingMiddleware()
+	} else if bs.Echo != nil {
+		bs.SetupHTTPMonitoringMiddleware()
+	}
 
 	if err := bs.HTTPServer.Serve(listener); err != nil && err != http.ErrServerClosed {
 		return err
@@ -202,6 +214,8 @@ func (bs *Service) ServeHTTP(listener net.Listener) error {
 
 // ServeGrpc serves a grpc service
 func (bs *Service) ServeGrpc(listener net.Listener) error {
+	bs.tracingSetup.Wait()
+
 	// At this point, the service is registered and we can inspect the services
 	for name, info := range bs.GrpcServer.GetServiceInfo() {
 		file, ok := info.Metadata.(string)
@@ -259,6 +273,22 @@ func (bs *Service) SetupHTTPTracingMiddleware() {
 		Tracer:  bs.Tracer,
 		Skipper: nil,
 	}))
+}
+
+// SetupGrpcMonitoring ...
+func (bs *Service) SetupGrpcMonitoring(ctx context.Context) {
+	grpc_prometheus.Register(bs.GrpcServer)
+	bs.MetricsHTTPServer = http.NewServeMux()
+	if bs.GrpcMetricsURL == "" {
+		bs.GrpcMetricsURL = "/metrics"
+	}
+	if bs.GrpcMetricsPort == 0 {
+		bs.GrpcMetricsPort = 9000
+	}
+	bs.MetricsHTTPServer.Handle(bs.GrpcMetricsURL, promhttp.Handler())
+	go func() {
+		http.ListenAndServe(fmt.Sprintf(":%d", bs.GrpcMetricsPort), bs.MetricsHTTPServer)
+	}()
 }
 
 // SetupGrpcHealthCheck ...
@@ -323,9 +353,11 @@ func (bs *Service) SetLogFormat(format logrus.Formatter) {
 
 // Connect connects to databases and other services
 func (bs *Service) Connect(cliCtx *cli.Context) error {
+	bs.tracingSetup.Add(1)
 	if err := bs.ConfigureTracing(cliCtx); err != nil {
 		log.Warnf("could not initialize jaeger tracer: %s", err.Error())
 	}
+
 	if bs.ConnectHook != nil {
 		return bs.ConnectHook(bs)
 	}
@@ -348,6 +380,8 @@ func (bs *Service) Dial(ctx context.Context, host string, port uint, opts *DialO
 		grpc.WithBlock(),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize), grpc.MaxCallSendMsgSize(maxMsgSize)),
 		grpc.WithTimeout(time.Duration(5+opts.TimeoutSec)*time.Second),
+		grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
+		grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
 	)
 }
 
@@ -367,6 +401,7 @@ func (bs *Service) ConfigureLogging(cliCtx *cli.Context) {
 
 // ConfigureTracing ...
 func (bs *Service) ConfigureTracing(cliCtx *cli.Context) error {
+	defer bs.tracingSetup.Done()
 	tracerMux.Lock()
 	defer tracerMux.Unlock()
 	metricsFactory := prometheus.New()
