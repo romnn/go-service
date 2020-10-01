@@ -6,18 +6,21 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"regexp"
 	"sync"
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/opentracing/opentracing-go"
+	jaegercfg "github.com/uber/jaeger-client-go/config"
 	"github.com/uber/jaeger-lib/metrics/prometheus"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	pref "google.golang.org/protobuf/reflect/protoreflect"
 	preg "google.golang.org/protobuf/reflect/protoregistry"
 
-	jaegercfg "github.com/uber/jaeger-client-go/config"
-
+	jaegermw "github.com/labstack/echo-contrib/jaegertracing"
+	prommw "github.com/labstack/echo-contrib/prometheus"
 	"github.com/labstack/echo/v4/middleware"
 	glog "github.com/labstack/gommon/log"
 	logmiddleware "github.com/neko-neko/echo-logrus/v2"
@@ -52,16 +55,19 @@ var (
 
 // Service ...
 type Service struct {
-	Name         string
-	Version      string
-	BuildTime    string
-	Echo         *echo.Echo
-	HTTPServer   *http.Server
-	GrpcServer   *grpc.Server
-	Health       *health.Server
-	TracerCloser io.Closer
-	Ready        bool
-	Healthy      bool
+	Name                     string
+	ShortName                string
+	Version                  string
+	BuildTime                string
+	Echo                     *echo.Echo
+	HTTPServer               *http.Server
+	GrpcServer               *grpc.Server
+	Health                   *health.Server
+	MonitoringHTTPMiddleware *prommw.Prometheus
+	Tracer                   opentracing.Tracer
+	TracerCloser             io.Closer
+	Ready                    bool
+	Healthy                  bool
 
 	// Hooks
 	PostBootstrapHook func(bs *Service) error
@@ -124,6 +130,9 @@ func WrapServerStream(stream grpc.ServerStream) *WrappedServerStream {
 
 // Bootstrap ...
 func (bs *Service) Bootstrap(cliCtx *cli.Context) error {
+	if bs.ShortName == "" {
+		bs.ShortName = bs.Name
+	}
 	bs.ConfigureLogging(cliCtx)
 	bs.SetHealthy(false)
 	if bs.PostBootstrapHook != nil {
@@ -179,7 +188,19 @@ func (bs *Service) BootstrapGrpc(ctx context.Context, cliCtx *cli.Context, opts 
 	return bs.Bootstrap(cliCtx)
 }
 
-// ServeGrpc prepares an http service
+// ServeGrpc serves an http service
+func (bs *Service) ServeHTTP(listener net.Listener) error {
+	// Hook up middlewares
+	bs.SetupHTTPMonitoringMiddleware()
+	bs.SetupHTTPTracingMiddleware()
+
+	if err := bs.HTTPServer.Serve(listener); err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	return nil
+}
+
+// ServeGrpc serves a grpc service
 func (bs *Service) ServeGrpc(listener net.Listener) error {
 	// At this point, the service is registered and we can inspect the services
 	for name, info := range bs.GrpcServer.GetServiceInfo() {
@@ -216,6 +237,28 @@ func (bs *Service) BootstrapHTTP(ctx context.Context, cliCtx *cli.Context, handl
 	bs.HTTPServer = &http.Server{Handler: handler}
 	bs.SetupHTTPHealthCheck(ctx, handler, bs.HTTPHealthCheckURL)
 	return bs.Bootstrap(cliCtx)
+}
+
+func safeName(s string) string {
+	reg, err := regexp.Compile("[^a-zA-Z0-9]+")
+	if err != nil {
+		return "unknown"
+	}
+	return reg.ReplaceAllString(s, "")
+}
+
+// SetupHTTPMonitoringMiddleware ...
+func (bs *Service) SetupHTTPMonitoringMiddleware() {
+	bs.MonitoringHTTPMiddleware = prommw.NewPrometheus(safeName(bs.ShortName), nil)
+	bs.MonitoringHTTPMiddleware.Use(bs.Echo)
+}
+
+// SetupHTTPTracingMiddleware ...
+func (bs *Service) SetupHTTPTracingMiddleware() {
+	bs.Echo.Use(jaegermw.TraceWithConfig(jaegermw.TraceConfig{
+		Tracer:  bs.Tracer,
+		Skipper: nil,
+	}))
 }
 
 // SetupGrpcHealthCheck ...
@@ -280,9 +323,7 @@ func (bs *Service) SetLogFormat(format logrus.Formatter) {
 
 // Connect connects to databases and other services
 func (bs *Service) Connect(cliCtx *cli.Context) error {
-	var err error
-	bs.TracerCloser, err = bs.ConfigureTracing(cliCtx)
-	if err != nil {
+	if err := bs.ConfigureTracing(cliCtx); err != nil {
 		log.Warnf("could not initialize jaeger tracer: %s", err.Error())
 	}
 	if bs.ConnectHook != nil {
@@ -325,24 +366,31 @@ func (bs *Service) ConfigureLogging(cliCtx *cli.Context) {
 }
 
 // ConfigureTracing ...
-func (bs *Service) ConfigureTracing(cliCtx *cli.Context) (io.Closer, error) {
+func (bs *Service) ConfigureTracing(cliCtx *cli.Context) error {
 	tracerMux.Lock()
 	defer tracerMux.Unlock()
+	metricsFactory := prometheus.New()
+
+	name := safeName(bs.ShortName)
 	cfg := jaegercfg.Configuration{
+		ServiceName: name,
 		Sampler: &jaegercfg.SamplerConfig{
+			Type:              "const",
+			Param:             1,
 			SamplingServerURL: bs.JaegerSamplingServerURL,
 		},
 		Reporter: &jaegercfg.ReporterConfig{
-			LocalAgentHostPort: fmt.Sprintf("%s:%d", bs.JaegerAgentHost, bs.JaegerAgentPort),
+			LogSpans:            true,
+			BufferFlushInterval: 1 * time.Second,
+			LocalAgentHostPort:  fmt.Sprintf("%s:%d", bs.JaegerAgentHost, bs.JaegerAgentPort),
 		},
 	}
-	metricsFactory := prometheus.New()
-	closer, err := cfg.InitGlobalTracer(
-		bs.Name,
-		jaegercfg.Metrics(metricsFactory),
-	)
+
+	var err error
+	bs.Tracer, bs.TracerCloser, err = cfg.New(name, jaegercfg.Metrics(metricsFactory))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return closer, nil
+	opentracing.SetGlobalTracer(bs.Tracer)
+	return nil
 }
