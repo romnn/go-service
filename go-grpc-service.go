@@ -38,7 +38,7 @@ import (
 )
 
 // Version is incremented using bump2version
-const Version = "0.0.10"
+const Version = "0.0.11"
 
 // GrpcMethodName ...
 type GrpcMethodName string
