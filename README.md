@@ -1,6 +1,6 @@
 ## go-grpc-service
 
-[![Build Status](https://travis-ci.com/romnn/go-grpc-service.svg?branch=master)](https://travis-ci.com/romnn/go-grpc-service)
+[![Build Status](https://github.com/romnn/go-grpc-service/workflows/test/badge.svg)](https://github.com/romnn/go-grpc-service/actions)
 [![GitHub](https://img.shields.io/github/license/romnn/go-grpc-service)](https://github.com/romnn/go-grpc-service)
 [![GoDoc](https://godoc.org/github.com/romnn/go-grpc-service?status.svg)](https://godoc.org/github.com/romnn/go-grpc-service)  [![Test Coverage](https://codecov.io/gh/romnn/go-grpc-service/branch/master/graph/badge.svg)](https://codecov.io/gh/romnn/go-grpc-service)
 [![Release](https://img.shields.io/github/release/romnn/go-grpc-service)](https://github.com/romnn/go-grpc-service/releases/latest)
