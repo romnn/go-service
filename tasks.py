@@ -10,7 +10,7 @@ import os
 from invoke import task
 import webbrowser
 
-PKG = "github.com/romnnn/go-grpc-service"
+PKG = "github.com/romnn/go-grpc-service"
 CMD_PKG = PKG
 
 

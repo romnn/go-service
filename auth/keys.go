@@ -12,7 +12,7 @@ import (
 )
 
 // GenerateKeys generates private and public keys for jwt validation
-func GenerateKeys() (*rsa.PrivateKey, []byte, *jwk.Set, []byte, error) {
+func GenerateKeys() (*rsa.PrivateKey, []byte, jwk.Set, []byte, error) {
 	key, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -25,8 +25,8 @@ func GenerateKeys() (*rsa.PrivateKey, []byte, *jwk.Set, []byte, error) {
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	jwkSet := new(jwk.Set)
-	if err := jwkSet.UnmarshalJSON(jwkJSON); err != nil {
+	jwkSet, err := jwk.Parse(jwkJSON)
+	if err != nil {
 		return nil, nil, nil, nil, err
 	}
 	return key, ToPEM(key), jwkSet, jwkJSON, nil
@@ -51,16 +51,12 @@ func LoadSigningKeyFromFile(privateKeyFile string) (*rsa.PrivateKey, error) {
 }
 
 // ParseJwkSet ...
-func ParseJwkSet(jwkSetData []byte) (*jwk.Set, error) {
-	jwkSet := new(jwk.Set)
-	if err := jwkSet.UnmarshalJSON(jwkSetData); err != nil {
-		return nil, err
-	}
-	return jwkSet, nil
+func ParseJwkSet(jwkSetData []byte) (jwk.Set, error) {
+	return jwk.Parse(jwkSetData)
 }
 
 // LoadJwkSetFromFile ...
-func LoadJwkSetFromFile(jwkSetFile string) (*jwk.Set, error) {
+func LoadJwkSetFromFile(jwkSetFile string) (jwk.Set, error) {
 	jwksData, err := ioutil.ReadFile(jwkSetFile)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read %s: %v", jwkSetFile, err)

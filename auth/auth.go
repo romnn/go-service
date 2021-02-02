@@ -15,7 +15,7 @@ type Authenticator struct {
 	Audience string
 
 	SignKey       *rsa.PrivateKey
-	JwkSet        *jwk.Set
+	JwkSet        jwk.Set
 	ExpireSeconds int64
 }
 
@@ -42,9 +42,9 @@ func (a *Authenticator) Validate(token string, claims Claims) (bool, *jwt.Token,
 			return nil, fmt.Errorf("unexpected signing method: %v", keyAlg)
 		}
 
-		if matchingKeys := a.JwkSet.LookupKeyID(keyID); len(matchingKeys) == 1 {
+		if matchingKey, ok := a.JwkSet.LookupKeyID(keyID); ok {
 			var key rsa.PublicKey
-			err := matchingKeys[0].Raw(&key)
+			err := matchingKey.Raw(&key)
 			return &key, err
 		}
 		return nil, fmt.Errorf("unable to find key %q", keyID)

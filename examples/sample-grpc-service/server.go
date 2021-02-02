@@ -9,10 +9,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	gogrpcservice "github.com/romnnn/go-grpc-service"
-	pb "github.com/romnnn/go-grpc-service/gen/sample-services"
+	gogrpcservice "github.com/romnn/go-grpc-service"
+	pb "github.com/romnn/go-grpc-service/gen/sample-services"
 
-	"github.com/romnnn/flags4urfavecli/flags"
+	"github.com/romnn/flags4urfavecli/flags"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"google.golang.org/protobuf/proto"

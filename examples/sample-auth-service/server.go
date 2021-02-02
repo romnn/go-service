@@ -10,11 +10,11 @@ import (
 	"syscall"
 
 	"github.com/dgrijalva/jwt-go"
-	gogrpcservice "github.com/romnnn/go-grpc-service"
-	"github.com/romnnn/go-grpc-service/auth"
-	pb "github.com/romnnn/go-grpc-service/gen/sample-services"
+	gogrpcservice "github.com/romnn/go-grpc-service"
+	"github.com/romnn/go-grpc-service/auth"
+	pb "github.com/romnn/go-grpc-service/gen/sample-services"
 
-	"github.com/romnnn/flags4urfavecli/flags"
+	"github.com/romnn/flags4urfavecli/flags"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 

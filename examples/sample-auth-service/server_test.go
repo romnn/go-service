@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/romnnn/go-grpc-service/auth"
-	pb "github.com/romnnn/go-grpc-service/gen/sample-services"
+	"github.com/romnn/go-grpc-service/auth"
+	pb "github.com/romnn/go-grpc-service/gen/sample-services"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"

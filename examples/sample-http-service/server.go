@@ -11,9 +11,9 @@ import (
 	"syscall"
 
 	"github.com/labstack/echo/v4"
-	gogrpcservice "github.com/romnnn/go-grpc-service"
+	gogrpcservice "github.com/romnn/go-grpc-service"
 
-	"github.com/romnnn/flags4urfavecli/flags"
+	"github.com/romnn/flags4urfavecli/flags"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 )

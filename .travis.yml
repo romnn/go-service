@@ -7,7 +7,7 @@ go:
 os:
   - linux
   - osx
-env: MOD=github.com/romnnn/go-grpc-service BINARY=go-grpc-service
+env: MOD=github.com/romnn/go-grpc-service BINARY=go-grpc-service
 
 jobs:
   allow_failures:
