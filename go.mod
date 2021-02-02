@@ -1,8 +1,9 @@
 module github.com/romnn/go-grpc-service
 
-go 1.14
+go 1.13
 
 require (
+	github.com/HdrHistogram/hdrhistogram-go v1.0.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/golang/protobuf v1.4.3
@@ -12,7 +13,6 @@ require (
 	github.com/labstack/echo/v4 v4.1.17
 	github.com/labstack/gommon v0.3.0
 	github.com/lestrrat-go/jwx v1.1.0
-	github.com/lestrrat-go/pdebug v0.0.0-20200204225717-4d6bd78da58d // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/neko-neko/echo-logrus/v2 v2.0.1
 	github.com/opentracing/opentracing-go v1.2.0
