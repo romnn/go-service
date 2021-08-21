@@ -203,7 +203,11 @@ func (bs *Service) BootstrapGrpc(ctx context.Context, cliCtx *cli.Context, opts 
 	)
 	bs.SetupGrpcMonitoring(ctx)
 	bs.SetupGrpcHealthCheck(ctx)
+	return bs.Bootstrap(cliCtx)
+}
 
+// InspectService injects metadata about the GPRC service to be used for tracing
+func (bs *Service) InspectService() error {
 	// At this point, the service is registered and we can inspect the services
 	for name, info := range bs.GrpcServer.GetServiceInfo() {
 		file, ok := info.Metadata.(string)
@@ -225,8 +229,7 @@ func (bs *Service) BootstrapGrpc(ctx context.Context, cliCtx *cli.Context, opts 
 			}
 		}
 	}
-
-	return bs.Bootstrap(cliCtx)
+	return nil
 }
 
 // ServeGrpc serves an http service
@@ -248,27 +251,8 @@ func (bs *Service) ServeHTTP(listener net.Listener) error {
 // ServeGrpc serves a grpc service
 func (bs *Service) ServeGrpc(listener net.Listener) error {
 	bs.tracingSetup.Wait()
-
-	// At this point, the service is registered and we can inspect the services
-	for name, info := range bs.GrpcServer.GetServiceInfo() {
-		file, ok := info.Metadata.(string)
-		if !ok {
-			return fmt.Errorf("service %q has unexpected metadata: expecting a string; got %v", name, info.Metadata)
-		}
-		fileDesc, err := preg.GlobalFiles.FindFileByPath(file)
-		if err != nil {
-			return err
-		}
-		services := fileDesc.Services()
-		for i := 0; i < services.Len(); i++ {
-			service := services.Get(i)
-			methods := service.Methods()
-			for i := 0; i < methods.Len(); i++ {
-				method := methods.Get(i)
-				methodName := GrpcMethodName(fmt.Sprintf("/%s/%s", service.FullName(), method.Name()))
-				bs.methods[methodName] = method
-			}
-		}
+	if err := bs.InspectService(); err != nil {
+		return err
 	}
 	return bs.GrpcServer.Serve(listener)
 }
