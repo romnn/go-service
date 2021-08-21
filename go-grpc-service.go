@@ -203,6 +203,29 @@ func (bs *Service) BootstrapGrpc(ctx context.Context, cliCtx *cli.Context, opts 
 	)
 	bs.SetupGrpcMonitoring(ctx)
 	bs.SetupGrpcHealthCheck(ctx)
+
+	// At this point, the service is registered and we can inspect the services
+	for name, info := range bs.GrpcServer.GetServiceInfo() {
+		file, ok := info.Metadata.(string)
+		if !ok {
+			return fmt.Errorf("service %q has unexpected metadata: expecting a string; got %v", name, info.Metadata)
+		}
+		fileDesc, err := preg.GlobalFiles.FindFileByPath(file)
+		if err != nil {
+			return err
+		}
+		services := fileDesc.Services()
+		for i := 0; i < services.Len(); i++ {
+			service := services.Get(i)
+			methods := service.Methods()
+			for i := 0; i < methods.Len(); i++ {
+				method := methods.Get(i)
+				methodName := GrpcMethodName(fmt.Sprintf("/%s/%s", service.FullName(), method.Name()))
+				bs.methods[methodName] = method
+			}
+		}
+	}
+
 	return bs.Bootstrap(cliCtx)
 }
 
