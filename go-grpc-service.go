@@ -392,12 +392,12 @@ type DialOptions struct {
 }
 
 // Dial connects to an external GRPC service
-func (bs *Service) Dial(ctx context.Context, host string, port uint, opts *DialOptions) (*grpc.ClientConn, error) {
+func (bs *Service) Dial(ctx context.Context, host string, port uint, path string, opts *DialOptions) (*grpc.ClientConn, error) {
 	if opts == nil {
 		opts = &DialOptions{TimeoutSec: 5}
 	}
 	return grpc.Dial(
-		fmt.Sprintf("%s:%d", host, port),
+		fmt.Sprintf("%s:%d%s", host, port, path),
 		grpc.WithInsecure(),
 		grpc.WithBlock(),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize), grpc.MaxCallSendMsgSize(maxMsgSize)),
