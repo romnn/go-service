@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_opentracing "github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 
@@ -21,6 +20,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics/prometheus"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
 	// pref "google.golang.org/protobuf/reflect/protoreflect"
 	// preg "google.golang.org/protobuf/reflect/protoregistry"
 

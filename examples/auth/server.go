@@ -12,8 +12,8 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	goservice "github.com/romnn/go-service"
-	"github.com/romnn/go-service/pkg/auth"
 	pb "github.com/romnn/go-service/examples/auth/gen"
+	"github.com/romnn/go-service/pkg/auth"
 
 	// "github.com/romnn/flags4urfavecli/flags"
 	// log "github.com/sirupsen/logrus"

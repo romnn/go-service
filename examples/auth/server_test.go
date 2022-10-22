@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	bufSize  = 1024 * 1024
+	bufSize = 1024 * 1024
 )
 
 type DialerFunc = func(string, time.Duration) (net.Conn, error)
@@ -99,7 +99,7 @@ type test struct {
 }
 
 func (test *test) setup(t *testing.T) *test {
-  t.Parallel()
+	t.Parallel()
 
 	var err error
 	// This wil disable the application logger

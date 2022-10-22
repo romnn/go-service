@@ -2,38 +2,31 @@ package main
 
 import (
 	"context"
-	"fmt"
-
+	"log"
 	"net"
-	// "os"
-	// "os/signal"
-	// "syscall"
+	"os"
+	"os/signal"
+	"syscall"
 
-	// gogrpcservice "github.com/romnn/go-grpc-service"
 	pb "github.com/romnn/go-service/examples/reflect/gen"
 	"github.com/romnn/go-service/pkg/grpc/reflect"
-	// "github.com/romnn/flags4urfavecli/flags"
-	// log "github.com/sirupsen/logrus"
-	"github.com/urfave/cli/v2"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
-	// pref "google.golang.org/protobuf/reflect/protoreflect"
-	// "google.golang.org/grpc/codes"
-	// "google.golang.org/grpc/status"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-// ReflectService ...
+// ReflectService implements the reflect service
 type ReflectService struct {
-	// gogrpcservice.Service
 	pb.UnimplementedReflectServer
-
-	// connected bool
 }
 
 func (s *ReflectService) getAnnotations(ctx context.Context) (*pb.Annotations, error) {
 	var annotations pb.Annotations
 	info, ok := reflect.GetMethodInfo(ctx)
 	if !ok {
-		return &annotations, fmt.Errorf("failed to get method descriptor")
+		return &annotations, status.Error(codes.Internal, "failed to get grpc method info")
 	}
 	methodOptions := info.Method().Options()
 	if boolValue, ok := proto.GetExtension(methodOptions, pb.E_BoolValue).(bool); ok {
@@ -48,93 +41,41 @@ func (s *ReflectService) getAnnotations(ctx context.Context) (*pb.Annotations, e
 	return &annotations, nil
 }
 
-// GetNoAnnotations ...
+// GetNoAnnotations returns the options of this GRPC method
 func (s *ReflectService) GetNoAnnotations(ctx context.Context, req *pb.Empty) (*pb.Annotations, error) {
 	return s.getAnnotations(ctx)
 }
 
-// GetAnnotations ...
+// GetAnnotations returns the options of this GRPC method
 func (s *ReflectService) GetAnnotations(ctx context.Context, req *pb.Empty) (*pb.Annotations, error) {
 	return s.getAnnotations(ctx)
 }
 
-// Serve starts to serve the service
-func (s *ReflectService) Serve(ctx *cli.Context, listener net.Listener) error {
-	// go func() {
-	// 	log.Info("connecting...")
-	// 	if err := server.Service.Connect(ctx); err != nil {
-	// 		log.Error(err)
-	// 		s.Shutdown()
-	// 	}
-	// 	s.Service.Ready = true
-	// 	s.Service.SetHealthy(true)
-	// 	log.Infof("%s ready at %s", s.Service.Name, listener.Addr())
-	// }()
-
-	// pb.RegisterSampleServer(s.Service.GrpcServer, s)
-	// if err := server.Service.ServeGrpc(listener); err != nil {
-	// 	return err
-	// }
-	// log.Info("closing socket")
-	// listener.Close()
-	return nil
-}
-
 func main() {
-	// shutdown := make(chan os.Signal)
-	// signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
-	// go func() {
-	// 	<-shutdown
-	// 	server.Shutdown()
-	// }()
+	listener, err := net.Listen("tcp", ":8080")
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
 
-	// cliFlags := []cli.Flag{
-	// 	&flags.LogLevelFlag,
-	// 	&cli.IntFlag{
-	// 		Name:    "port",
-	// 		Value:   80,
-	// 		Aliases: []string{"p"},
-	// 		EnvVars: []string{"PORT"},
-	// 		Usage:   "service port",
-	// 	},
-	// }
+	service := ReflectService{}
+	registry := reflect.NewRegistry()
+	server := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(reflect.UnaryServerInterceptor(registry)),
+		grpc.ChainStreamInterceptor(reflect.StreamServerInterceptor(registry)),
+	)
+	pb.RegisterReflectServer(server, &service)
+	registry.Load(server)
 
-	// name := "sample service"
+	shutdown := make(chan os.Signal)
+	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-shutdown
+		log.Println("shutdown ...")
+		server.GracefulStop()
+	}()
 
-	// app := &cli.App{
-	// 	Name:  name,
-	// 	Usage: "serves as an example",
-	// 	Flags: cliFlags,
-	// 	Action: func(cliCtx *cli.Context) error {
-	// 		server = SampleServer{
-	// 			Service: gogrpcservice.Service{
-	// 				Name:      name,
-	// 				Version:   Version,
-	// 				BuildTime: BuildTime,
-	// 				PostBootstrapHook: func(bs *gogrpcservice.Service) error {
-	// 					log.Info("<your app name> (c) <your name>")
-	// 					return nil
-	// 				},
-	// 				ConnectHook: func(bs *gogrpcservice.Service) error {
-	// 					server.connected = true
-	// 					return nil
-	// 				},
-	// 			},
-	// 		}
-	// 		port := fmt.Sprintf(":%d", cliCtx.Int("port"))
-	// 		listener, err := net.Listen("tcp", port)
-	// 		if err != nil {
-	// 			return fmt.Errorf("failed to listen: %v", err)
-	// 		}
-
-	// 		if err := server.Service.BootstrapGrpc(context.Background(), cliCtx, nil); err != nil {
-	// 			return err
-	// 		}
-	// 		return server.Serve(cliCtx, listener)
-	// 	},
-	// }
-	// err := app.Run(os.Args)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	log.Printf("listening on: %v", listener.Addr())
+	if err := server.Serve(listener); err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
 }

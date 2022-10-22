@@ -3,14 +3,14 @@ package reflect;
 
 import "google/protobuf/descriptor.proto";
 
+// we define custom options
 extend google.protobuf.MethodOptions {
   bool bool_value = 51234;
   string string_value = 51235;
   int32 int_value = 51236;
 }
 
-message Empty {
-}
+message Empty {}
 
 message Annotations {
   bool bool_value = 1;
@@ -19,53 +19,13 @@ message Annotations {
 }
 
 service Reflect {
+  // we will read the options of this method using reflection
   rpc GetNoAnnotations(Empty) returns (Annotations) {}
 
+  // we will read the options of this method using reflection
   rpc GetAnnotations(Empty) returns (Annotations) {
     option (bool_value) = true;
     option (string_value) = "Hello World";
     option (int_value) = 42;
   }
 }
-
-message LoginRequest {
-  string username = 1;
-  string password = 2;
-}
-
-message Token {
-  string token = 1;
-}
-
-message GetSecretRequest {
-  Token token = 1;
-}
-
-message Secret {
-  string secret = 1;
-}
-
-/* service Reflect { */
-/*   rpc Login(LoginRequest) returns (Token) {} */
-
-/*   rpc GetSecret(GetSecretRequest) returns (Secret) { */
-/*     option (require_admin) = true; */
-/*   } */
-/* } */
-
-/* message LoginRequest { */
-/*   string username = 1; */
-/*   string password = 2; */
-/* } */
-
-/* message Token { */
-/*   string token = 1; */
-/* } */
-
-/* message GetSecretRequest { */
-/*   Token token = 1; */
-/* } */
-
-/* message Secret { */
-/*   string secret = 1; */
-/* } */

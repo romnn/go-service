@@ -1,3 +1,13 @@
+import (
+	"context"
+	"fmt"
+	"time"
+
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"google.golang.org/grpc"
+)
+
 // DialOptions ...
 type DialOptions struct {
 	TimeoutSec int

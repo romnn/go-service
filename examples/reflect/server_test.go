@@ -49,7 +49,7 @@ func (test *test) setup(t *testing.T) *test {
 
 	go func() {
 		if err := test.server.Serve(listener); err != nil {
-			t.Fatalf("failed to serve service: %v", err)
+			t.Fatalf("failed to serve: %v", err)
 		}
 	}()
 
