@@ -36,7 +36,6 @@ func (test *test) setup(t *testing.T) *test {
 	var err error
 	t.Parallel()
 
-	listener := bufconn.Listen(bufSize)
 	test.service = &ReflectService{}
 
 	registry := reflect.NewRegistry()
@@ -47,6 +46,7 @@ func (test *test) setup(t *testing.T) *test {
 	pb.RegisterReflectServer(test.server, test.service)
 	registry.Load(test.server)
 
+	listener := bufconn.Listen(bufSize)
 	go func() {
 		if err := test.server.Serve(listener); err != nil {
 			t.Fatalf("failed to serve: %v", err)

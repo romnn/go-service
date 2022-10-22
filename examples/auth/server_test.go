@@ -2,17 +2,13 @@ package main
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"io/ioutil"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/romnn/go-grpc-service/auth"
-	pb "github.com/romnn/go-grpc-service/gen/sample-services"
-	log "github.com/sirupsen/logrus"
+	pb "github.com/romnn/go-service/examples/auth/gen"
+	"github.com/romnn/go-service/pkg/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
 )
@@ -29,239 +25,212 @@ func dailerFor(listener *bufconn.Listener) DialerFunc {
 	}
 }
 
-func setUpAuthServer(t *testing.T, listener *bufconn.Listener) (*AuthServer, error) {
-	server := &AuthServer{
-		Authenticator: &auth.Authenticator{
-			ExpireSeconds: 100,
-			Issuer:        "mock-issuer",
-			Audience:      "mock-audience",
-		},
-		UserBackend: &MockUserMgmtBackend{},
-	}
-	if err := server.Authenticator.SetupKeys(&auth.AuthenticatorKeyConfig{Generate: true}); err != nil {
-		return nil, fmt.Errorf("failed to setup keys: %v", err)
-	}
-	if err := server.Service.BootstrapGrpc(context.Background(), nil, nil); err != nil {
-		return nil, fmt.Errorf("failed to setup grpc server: %v", err)
-	}
-
-	go func() {
-		pb.RegisterAuthenticationServer(server.Service.GrpcServer, server)
-		if err := server.ServeGrpc(listener); err != nil {
-			t.Fatalf("failed to serve auth service: %v", err)
-		}
-	}()
-
-	return server, nil
-}
-
-func teardownServer(server interface{ Shutdown() }) {
-	server.Shutdown()
-}
-
-// UserMgmtBackend ...
-type MockUserMgmtBackend struct {
-	users []*User
-}
-
-func (um *MockUserMgmtBackend) AddUser(ctx context.Context, user *User) (*User, error) {
-	um.users = append(um.users, user)
-	return user, nil
-}
-
-func (um *MockUserMgmtBackend) RemoveUserByEmail(ctx context.Context, email string) (*User, error) {
-	var filtered []*User
-	var removed *User
-	for _, user := range um.users {
-		if email != user.Email {
-			filtered = append(filtered, user)
-		} else {
-			removed = user
-		}
-	}
-	um.users = filtered
-	return removed, nil
-}
-
-func (um *MockUserMgmtBackend) GetUserByEmail(ctx context.Context, email string) (*User, error) {
-	for _, user := range um.users {
-		if email == user.Email {
-			return user, nil
-		}
-	}
-	return nil, errors.New("user not found")
-}
-
 type test struct {
-	authEndpoint *grpc.ClientConn
-	authServer   *AuthServer
-	authClient   pb.AuthenticationClient
+	conn    *grpc.ClientConn
+	service *AuthService
+	server  *grpc.Server
+	client  pb.AuthClient
 }
 
 func (test *test) setup(t *testing.T) *test {
+	var err error
 	t.Parallel()
 
-	var err error
-	// This wil disable the application logger
-	log.SetOutput(ioutil.Discard)
-
-	authListener := bufconn.Listen(bufSize)
-	test.authServer, err = setUpAuthServer(t, authListener)
-	if err != nil {
-		t.Fatalf("failed to setup the authentication service: %v", err)
-		return test
+	authenticator := auth.Authenticator{
+		ExpireSeconds: 100,
+		Issuer:        "mock-issuer",
+		Audience:      "mock-audience",
 	}
 
-	// Create endpoints
-	test.authEndpoint, err = grpc.DialContext(context.Background(), "bufnet", grpc.WithDialer(dailerFor(authListener)), grpc.WithInsecure(), grpc.WithBlock())
-	if err != nil {
-		t.Fatalf("failed to dial bufnet: %v", err)
-		return test
+	keyConfig := auth.AuthenticatorKeyConfig{Generate: true}
+	if err := authenticator.SetupKeys(&keyConfig); err != nil {
+		t.Fatalf("failed to setup keys: %v", err)
 	}
 
-	test.authClient = pb.NewAuthenticationClient(test.authEndpoint)
+	test.service = &AuthService{
+		Authenticator: &authenticator,
+		Database: &userDatabase{
+			users: make(map[string]*User),
+		},
+	}
+
+	test.server = grpc.NewServer()
+	pb.RegisterAuthServer(test.server, test.service)
+
+	listener := bufconn.Listen(bufSize)
+	go func() {
+		if err := test.server.Serve(listener); err != nil {
+			t.Fatalf("failed to serve: %v", err)
+		}
+	}()
+
+	test.conn, err = grpc.Dial(
+		"bufnet",
+		grpc.WithDialer(dailerFor(listener)),
+		grpc.WithInsecure(),
+		grpc.WithTimeout(20*time.Second),
+		grpc.WithBlock(),
+	)
+	if err != nil {
+		t.Fatalf("failed to dial grpc service: %v", err)
+	}
+
+	test.client = pb.NewAuthClient(test.conn)
 	return test
 }
 
 func (test *test) teardown() {
-	_ = test.authEndpoint.Close()
-	test.authServer.Shutdown()
-}
-
-func mustHashPassword(pw string) string {
-	hashed, err := auth.HashPassword(pw)
-	if err != nil {
-		panic(err)
+	if test.conn != nil {
+		_ = test.conn.Close()
 	}
-	return hashed
+	if test.server != nil {
+		test.server.GracefulStop()
+	}
 }
 
-func TestLogin(t *testing.T) {
+func TestLoginMissingUser(t *testing.T) {
 	test := new(test).setup(t)
 	defer test.teardown()
 
-	// Invalid login because no such user has been added
-	assertLoginFails(t, test.authClient, &pb.UserLoginRequest{
+	assertLoginFails(t, test.client, &pb.LoginRequest{
 		Email:    "test@example.com",
 		Password: "secret",
 	})
+}
 
-	// Add the user from to make sure login succeeds now
-	user1Password := "secret"
-	user1, _ := test.authServer.UserBackend.AddUser(context.Background(), &User{
+func TestLoginExisingUser(t *testing.T) {
+	test := new(test).setup(t)
+	defer test.teardown()
+
+	// add user
+	password := "secret"
+	user := User{
 		Email:          "test@example.com",
-		HashedPassword: mustHashPassword(user1Password),
+		HashedPassword: auth.MustHashPassword(password),
+	}
+	test.service.Database.AddUser(&user)
+
+	assertSuccessfulLogin(t, test.client, &pb.LoginRequest{
+		Email:    user.Email,
+		Password: password,
 	})
 
-	assertSuccessfulLogin(t, test.authClient, &pb.UserLoginRequest{
-		Email:    user1.Email,
-		Password: user1Password,
+	// login fails for wrong password
+	assertLoginFails(t, test.client, &pb.LoginRequest{
+		Email:    user.Email,
+		Password: password + "'",
+	})
+	assertLoginFails(t, test.client, &pb.LoginRequest{
+		Email:    user.Email + " ",
+		Password: password,
+	})
+	assertLoginFails(t, test.client, &pb.LoginRequest{
+		Email:    user.Email,
+		Password: "",
+	})
+	assertLoginFails(t, test.client, &pb.LoginRequest{
+		Email:    "",
+		Password: password,
 	})
 
-	// Invalid user login because of typos
-	assertLoginFails(t, test.authClient, &pb.UserLoginRequest{
-		Email:    user1.Email,
-		Password: user1Password + "'",
-	})
-	assertLoginFails(t, test.authClient, &pb.UserLoginRequest{
-		Email:    user1.Email + " ",
-		Password: user1Password,
+	assertLoginFails(t, test.client, &pb.LoginRequest{
+		Email:    user.Email,
+		Password: "sEcReT", // password is case sensitive
 	})
 
-	// Remove user1 to make sure login fails again
-	if _, err := test.authServer.UserBackend.RemoveUserByEmail(context.Background(), user1.Email); err != nil {
+	// remove user again
+	if _, err := test.service.Database.RemoveUserByEmail(user.Email); err != nil {
 		t.Errorf("failed to remove user: %v", err)
 	}
 
-	assertLoginFails(t, test.authClient, &pb.UserLoginRequest{
-		Email:    user1.Email,
-		Password: user1Password,
-	})
-
-	// Sanity check empty values
-	assertLoginFails(t, test.authClient, &pb.UserLoginRequest{
-		Email:    user1.Email,
-		Password: "",
-	})
-	assertLoginFails(t, test.authClient, &pb.UserLoginRequest{
-		Email:    "",
-		Password: user1Password,
-	})
-	assertLoginFails(t, test.authClient, &pb.UserLoginRequest{
-		Email:    "",
-		Password: "",
+	assertLoginFails(t, test.client, &pb.LoginRequest{
+		Email:    user.Email,
+		Password: password,
 	})
 }
 
-func TestValidation(t *testing.T) {
+func TestValidatesExistingUser(t *testing.T) {
 	test := new(test).setup(t)
 	defer test.teardown()
-	email := "test@example.com"
-	pw := "secret"
-	addedUser, _ := test.authServer.UserBackend.AddUser(context.Background(), &User{
-		Email:          email,
-		HashedPassword: mustHashPassword(pw),
-	})
 
-	// get the token from a valid user
-	response, err := assertSuccessfulLogin(t, test.authClient, &pb.UserLoginRequest{
-		Email:    email,
-		Password: pw,
+	// add user
+	password := "secret"
+	user := User{
+		Email:          "test@example.com",
+		HashedPassword: auth.MustHashPassword(password),
+	}
+	test.service.Database.AddUser(&user)
+
+	// get user token
+	response, err := assertSuccessfulLogin(t, test.client, &pb.LoginRequest{
+		Email:    user.Email,
+		Password: password,
 	})
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("failed to login valid user: %v", err)
 	}
-	assertIsValidToken(t, test.authClient, &pb.TokenValidationRequest{Token: response.Token})
+	assertIsValidToken(t, test.client, &pb.ValidationRequest{Token: response.Token})
 
-	// delete the valid user and make sure the token is valid until it expires
-	if _, err := test.authServer.UserBackend.RemoveUserByEmail(context.Background(), addedUser.Email); err != nil {
-		t.Fatalf("Failed to remove user: %v", err)
+	// delete the valid user
+	if _, err := test.service.Database.RemoveUserByEmail(user.Email); err != nil {
+		t.Fatalf("failed to remove user: %v", err)
 	}
-	assertIsValidToken(t, test.authClient, &pb.TokenValidationRequest{Token: response.Token})
-	at(time.Now().Add(time.Duration(test.authServer.Authenticator.ExpireSeconds+200)*time.Second), func() {
-		assertIsInvalidToken(t, test.authClient, &pb.TokenValidationRequest{Token: response.Token})
+
+	// the token is still valid
+	validationReq := pb.ValidationRequest{Token: response.Token}
+	assertIsValidToken(t, test.client, &validationReq)
+
+	// the token is invalid after it expires
+	expiration := time.Duration(test.service.Authenticator.ExpireSeconds+200) * time.Second
+	at(time.Now().Add(expiration), func() {
+		assertIsInvalidToken(t, test.client, &validationReq)
 	})
+}
 
-	// test for a malformed token (invalid format)
+func TestValidationFailsForBadToken(t *testing.T) {
+	test := new(test).setup(t)
+	defer test.teardown()
+
 	badToken := "12.adbs."
-	if _, err := test.authClient.Validate(context.Background(), &pb.TokenValidationRequest{Token: badToken}); err == nil {
-		t.Fatalf("Bad jwt \"%s\"did not cause internal parse error", badToken)
+	validationReq := pb.ValidationRequest{Token: badToken}
+	if _, err := test.client.Validate(context.Background(), &validationReq); err == nil {
+		t.Fatalf("did not return error for malformed jwt token %q", badToken)
 	}
 }
 
-// Override time value for tests.  Restore default value after.
-// Source: https://github.com/dgrijalva/jwt-go/blob/master/example_test.go#L81
+// Overrides time value for tests, restores afterwards
+// ref: https://github.com/dgrijalva/jwt-go/blob/master/example_test.go#L81
 func at(t time.Time, f func()) {
 	jwt.TimeFunc = func() time.Time { return t }
 	f()
 	jwt.TimeFunc = time.Now
 }
 
-func assertSuccessfulLogin(t *testing.T, client pb.AuthenticationClient, login *pb.UserLoginRequest) (*pb.AuthenticationToken, error) {
-	loginResult, err := client.Login(context.Background(), login)
+func assertSuccessfulLogin(t *testing.T, client pb.AuthClient, login *pb.LoginRequest) (*pb.AuthToken, error) {
+	result, err := client.Login(context.Background(), login)
 	if err != nil {
-		t.Fatalf("Login for user %v failed unexpectedly: %v", login, err)
+		t.Fatalf("login for user %v failed unexpectedly: %v", login, err)
 	}
-	return loginResult, err
+	return result, err
 }
 
-func assertLoginFails(t *testing.T, client pb.AuthenticationClient, login *pb.UserLoginRequest) {
-	loginResult, err := client.Login(context.Background(), login)
+func assertLoginFails(t *testing.T, client pb.AuthClient, login *pb.LoginRequest) {
+	result, err := client.Login(context.Background(), login)
 	if err == nil {
-		t.Fatalf("Login for user %v succeeded unexpectedly with token %v", login.GetEmail(), loginResult.Token)
+		t.Fatalf("login for user %v with token %q succeeded unexpectedly", login.GetEmail(), result.Token)
 	}
 }
 
-func assertIsValidToken(t *testing.T, client pb.AuthenticationClient, request *pb.TokenValidationRequest) {
-	valid, err := client.Validate(context.Background(), request)
+func assertIsValidToken(t *testing.T, client pb.AuthClient, req *pb.ValidationRequest) {
+	valid, err := client.Validate(context.Background(), req)
 	if err != nil || (valid != nil && !valid.Valid) {
-		t.Fatalf("Validation for token %s yielded invalid unexpectedly: %v", request.Token, err)
+		t.Fatalf("validation for token %q failed unexpectedly: %v", req.Token, err)
 	}
 }
 
-func assertIsInvalidToken(t *testing.T, client pb.AuthenticationClient, request *pb.TokenValidationRequest) {
-	valid, err := client.Validate(context.Background(), request)
+func assertIsInvalidToken(t *testing.T, client pb.AuthClient, req *pb.ValidationRequest) {
+	valid, err := client.Validate(context.Background(), req)
 	if err == nil || (valid != nil && valid.Valid) {
-		t.Fatalf("Validation for token %s yielded valid unexpectedly", request.Token)
+		t.Fatalf("validation for token %q succeeded unexpectedly", req.Token)
 	}
 }

@@ -57,7 +57,7 @@ func (a *Authenticator) Validate(token string, claims Claims) (bool, *jwt.Token,
 
 // Login logs in by signing the provided claim
 func (a *Authenticator) Login(claims Claims) (string, int64, error) {
-	token, err := a.SignJwt(claims)
+	token, err := a.SignJwtClaims(claims)
 	return token, a.ExpireSeconds, err
 }
 
@@ -85,11 +85,19 @@ func (a *Authenticator) SetupKeys(config *AuthenticatorKeyConfig) error {
 		if !config.Generate {
 			return errors.New("missing signing key or jwk set and --generate disabled")
 		}
-		var err error
-		a.SignKey, _, a.JwkSet, _, err = GenerateKeys()
+		// var err error
+		// a.SignKey, _, a.JwkSet, _, err = GenerateKeys()
+
+		keyPair, err := GenerateRSAKeyPair()
 		if err != nil {
-			return fmt.Errorf("Failed to generate keys: %v", err)
+			return fmt.Errorf("failed to generate RSA key pair: %v", err)
 		}
+		a.SignKey = keyPair.PrivateKey
+		jwkSet, err := ToJwks(keyPair.PublicKey)
+		if err != nil {
+			return fmt.Errorf("failed to generate JWK set: %v", err)
+		}
+		a.JwkSet = jwkSet
 	}
 	return nil
 }

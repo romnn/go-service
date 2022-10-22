@@ -52,164 +52,164 @@ var (
 	tracerMux = sync.Mutex{}
 )
 
-// Service ...
-type Service struct {
-	Name                     string
-	ShortName                string
-	Version                  string
-	BuildTime                string
-	Echo                     *echo.Echo
-	MetricsHTTPServer        *http.ServeMux
-	HTTPServer               *http.Server
-	GrpcServer               *grpc.Server
-	Health                   *health.Server
-	MonitoringHTTPMiddleware *prommw.Prometheus
-	Tracer                   opentracing.Tracer
-	TracerCloser             io.Closer
-	Ready                    bool
-	Healthy                  bool
+// // Service ...
+// type Service struct {
+// 	Name                     string
+// 	ShortName                string
+// 	Version                  string
+// 	BuildTime                string
+// 	Echo                     *echo.Echo
+// 	MetricsHTTPServer        *http.ServeMux
+// 	HTTPServer               *http.Server
+// 	GrpcServer               *grpc.Server
+// 	Health                   *health.Server
+// 	MonitoringHTTPMiddleware *prommw.Prometheus
+// 	Tracer                   opentracing.Tracer
+// 	TracerCloser             io.Closer
+// 	Ready                    bool
+// 	Healthy                  bool
 
-	// Hooks
-	PostBootstrapHook func(bs *Service) error
-	ConnectHook       func(bs *Service) error
+// 	// Hooks
+// 	PostBootstrapHook func(bs *Service) error
+// 	ConnectHook       func(bs *Service) error
 
-	// Configuration
-	GrpcMetricsPort         uint
-	GrpcMetricsURL          string
-	HTTPHealthCheckURL      string
-	JaegerAgentHost         string
-	JaegerAgentPort         uint
-	JaegerSamplingServerURL string
+// 	// Configuration
+// 	GrpcMetricsPort         uint
+// 	GrpcMetricsURL          string
+// 	HTTPHealthCheckURL      string
+// 	JaegerAgentHost         string
+// 	JaegerAgentPort         uint
+// 	JaegerSamplingServerURL string
 
-	tracingSetup sync.WaitGroup
-	// methods      map[GrpcMethodName]pref.MethodDescriptor
-}
+// 	tracingSetup sync.WaitGroup
+// 	// methods      map[GrpcMethodName]pref.MethodDescriptor
+// }
 
 // GracefulStop ...
-func (bs *Service) GracefulStop() {
-	bs.Ready = false
-	bs.Healthy = false
-	log.Info("graceful shutdown")
-	log.Info("stopping GRPC server")
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
-	defer cancel()
-	if bs.GrpcServer != nil {
-		bs.GrpcServer.GracefulStop()
-	}
-	if bs.Echo != nil {
-		_ = bs.Echo.Shutdown(ctx)
-	}
-	if bs.HTTPServer != nil {
-		_ = bs.HTTPServer.Shutdown(ctx)
-		_ = bs.HTTPServer.Close()
-	}
-	if bs.Health != nil {
-		bs.Health.Shutdown()
-	}
-	if bs.TracerCloser != nil {
-		_ = bs.TracerCloser.Close()
-	}
-}
+// func (bs *Service) GracefulStop() {
+// 	bs.Ready = false
+// 	bs.Healthy = false
+// 	log.Info("graceful shutdown")
+// 	log.Info("stopping GRPC server")
+// 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+// 	defer cancel()
+// 	if bs.GrpcServer != nil {
+// 		bs.GrpcServer.GracefulStop()
+// 	}
+// 	if bs.Echo != nil {
+// 		_ = bs.Echo.Shutdown(ctx)
+// 	}
+// 	if bs.HTTPServer != nil {
+// 		_ = bs.HTTPServer.Shutdown(ctx)
+// 		_ = bs.HTTPServer.Close()
+// 	}
+// 	if bs.Health != nil {
+// 		bs.Health.Shutdown()
+// 	}
+// 	if bs.TracerCloser != nil {
+// 		_ = bs.TracerCloser.Close()
+// 	}
+// }
 
 // Bootstrap ...
-func (bs *Service) Bootstrap(cliCtx *cli.Context) error {
-	if bs.ShortName == "" {
-		bs.ShortName = bs.Name
-	}
-	bs.ConfigureLogging(cliCtx)
-	bs.SetHealthy(false)
-	if bs.PostBootstrapHook != nil {
-		return bs.PostBootstrapHook(bs)
-	}
-	return nil
-}
+// func (bs *Service) Bootstrap(cliCtx *cli.Context) error {
+// 	if bs.ShortName == "" {
+// 		bs.ShortName = bs.Name
+// 	}
+// 	bs.ConfigureLogging(cliCtx)
+// 	bs.SetHealthy(false)
+// 	if bs.PostBootstrapHook != nil {
+// 		return bs.PostBootstrapHook(bs)
+// 	}
+// 	return nil
+// }
 
-func (bs *Service) grpcUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
-	// bs.injectMethodDescriptors(ctx, info.FullMethod)
-	return handler(ctx, req)
-}
+// func (bs *Service) grpcUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+// 	// bs.injectMethodDescriptors(ctx, info.FullMethod)
+// 	return handler(ctx, req)
+// }
 
-func (bs *Service) grpcStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-	// bs.injectMethodDescriptors(ss.Context(), info.FullMethod)
-	wss := WrapServerStream(ss)
-	wss.WrappedContext = ss.Context()
-	return handler(srv, wss)
-}
+// func (bs *Service) grpcStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+// 	// bs.injectMethodDescriptors(ss.Context(), info.FullMethod)
+// 	wss := WrapServerStream(ss)
+// 	wss.WrappedContext = ss.Context()
+// 	return handler(srv, wss)
+// }
 
-// BootstrapGrpcOptions ...
-type BootstrapGrpcOptions struct {
-	USI []grpc.UnaryServerInterceptor
-	SSI []grpc.StreamServerInterceptor
-}
+// // BootstrapGrpcOptions ...
+// type BootstrapGrpcOptions struct {
+// 	USI []grpc.UnaryServerInterceptor
+// 	SSI []grpc.StreamServerInterceptor
+// }
 
 // BootstrapGrpc prepares a grpc service
-func (bs *Service) BootstrapGrpc(ctx context.Context, cliCtx *cli.Context, opts *BootstrapGrpcOptions) error {
-	usi := []grpc.UnaryServerInterceptor{
-		bs.grpcUnaryInterceptor,
-		grpc_prometheus.UnaryServerInterceptor,
-		grpc_opentracing.UnaryServerInterceptor(grpc_opentracing.WithTracer(bs.Tracer)),
-	}
-	ssi := []grpc.StreamServerInterceptor{
-		bs.grpcStreamInterceptor,
-		grpc_prometheus.StreamServerInterceptor,
-		grpc_opentracing.StreamServerInterceptor(grpc_opentracing.WithTracer(bs.Tracer)),
-	}
-	if opts != nil && opts.USI != nil {
-		usi = append(usi, opts.USI...)
-	}
-	if opts != nil && opts.SSI != nil {
-		ssi = append(ssi, opts.SSI...)
-	}
+// func (bs *Service) BootstrapGrpc(ctx context.Context, cliCtx *cli.Context, opts *BootstrapGrpcOptions) error {
+// 	usi := []grpc.UnaryServerInterceptor{
+// 		bs.grpcUnaryInterceptor,
+// 		grpc_prometheus.UnaryServerInterceptor,
+// 		grpc_opentracing.UnaryServerInterceptor(grpc_opentracing.WithTracer(bs.Tracer)),
+// 	}
+// 	ssi := []grpc.StreamServerInterceptor{
+// 		bs.grpcStreamInterceptor,
+// 		grpc_prometheus.StreamServerInterceptor,
+// 		grpc_opentracing.StreamServerInterceptor(grpc_opentracing.WithTracer(bs.Tracer)),
+// 	}
+// 	if opts != nil && opts.USI != nil {
+// 		usi = append(usi, opts.USI...)
+// 	}
+// 	if opts != nil && opts.SSI != nil {
+// 		ssi = append(ssi, opts.SSI...)
+// 	}
 
-	// bs.methods = make(map[GrpcMethodName]pref.MethodDescriptor)
-	bs.GrpcServer = grpc.NewServer(
-		grpc.ChainUnaryInterceptor(usi...),
-		grpc.ChainStreamInterceptor(ssi...),
-		grpc.MaxRecvMsgSize(maxMsgSize),
-		grpc.MaxSendMsgSize(maxMsgSize),
-	)
-	bs.SetupGrpcMonitoring(ctx)
-	bs.SetupGrpcHealthCheck(ctx)
-	return bs.Bootstrap(cliCtx)
-}
+// 	// bs.methods = make(map[GrpcMethodName]pref.MethodDescriptor)
+// 	bs.GrpcServer = grpc.NewServer(
+// 		grpc.ChainUnaryInterceptor(usi...),
+// 		grpc.ChainStreamInterceptor(ssi...),
+// 		grpc.MaxRecvMsgSize(maxMsgSize),
+// 		grpc.MaxSendMsgSize(maxMsgSize),
+// 	)
+// 	bs.SetupGrpcMonitoring(ctx)
+// 	bs.SetupGrpcHealthCheck(ctx)
+// 	return bs.Bootstrap(cliCtx)
+// }
 
 // ServeHTTP serves an http service
-func (bs *Service) ServeHTTP(listener net.Listener) error {
-	bs.tracingSetup.Wait()
+// func (bs *Service) ServeHTTP(listener net.Listener) error {
+// 	bs.tracingSetup.Wait()
 
-	// Hook up middlewares
-	if bs.Tracer != nil {
-		bs.SetupHTTPTracingMiddleware()
-	}
-	bs.SetupHTTPMonitoringMiddleware()
+// 	// Hook up middlewares
+// 	if bs.Tracer != nil {
+// 		bs.SetupHTTPTracingMiddleware()
+// 	}
+// 	bs.SetupHTTPMonitoringMiddleware()
 
-	if err := bs.HTTPServer.Serve(listener); err != nil && err != http.ErrServerClosed {
-		return err
-	}
-	return nil
-}
+// 	if err := bs.HTTPServer.Serve(listener); err != nil && err != http.ErrServerClosed {
+// 		return err
+// 	}
+// 	return nil
+// }
 
 // ServeGrpc serves a grpc service
-func (bs *Service) ServeGrpc(listener net.Listener) error {
-	bs.tracingSetup.Wait()
-	// if err := bs.InspectService(); err != nil {
-	// 	return err
-	// }
-	return bs.GrpcServer.Serve(listener)
-}
+// func (bs *Service) ServeGrpc(listener net.Listener) error {
+// 	bs.tracingSetup.Wait()
+// 	// if err := bs.InspectService(); err != nil {
+// 	// 	return err
+// 	// }
+// 	return bs.GrpcServer.Serve(listener)
+// }
 
 // BootstrapHTTP prepares an http service
-func (bs *Service) BootstrapHTTP(ctx context.Context, cliCtx *cli.Context, handler *echo.Echo, mws []echo.MiddlewareFunc) error {
-	handler.HideBanner = true
-	handler.Logger = log.Logger()
-	for _, mw := range append(mws, []echo.MiddlewareFunc{logmiddleware.Logger(), middleware.Recover()}...) {
-		handler.Use(mw)
-	}
-	bs.Echo = handler
-	bs.HTTPServer = &http.Server{Handler: handler}
-	bs.SetupHTTPHealthCheck(ctx, handler, bs.HTTPHealthCheckURL)
-	return bs.Bootstrap(cliCtx)
-}
+// func (bs *Service) BootstrapHTTP(ctx context.Context, cliCtx *cli.Context, handler *echo.Echo, mws []echo.MiddlewareFunc) error {
+// 	handler.HideBanner = true
+// 	handler.Logger = log.Logger()
+// 	for _, mw := range append(mws, []echo.MiddlewareFunc{logmiddleware.Logger(), middleware.Recover()}...) {
+// 		handler.Use(mw)
+// 	}
+// 	bs.Echo = handler
+// 	bs.HTTPServer = &http.Server{Handler: handler}
+// 	bs.SetupHTTPHealthCheck(ctx, handler, bs.HTTPHealthCheckURL)
+// 	return bs.Bootstrap(cliCtx)
+// }
 
 func safeName(s string) string {
 	reg, err := regexp.Compile("[^a-zA-Z0-9]+")

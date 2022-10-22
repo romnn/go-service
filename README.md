@@ -12,9 +12,204 @@ Some features:
 - composable authentication using JWT
 - gRPC interceptors for method reflection
 
-##### Example: Reflection
+##### Example: Authentication
+
+```proto
+// examples/auth/service.proto
+
+syntax = "proto3";
+package auth;
+
+service Auth {
+  rpc Login(LoginRequest) returns (AuthToken) {}
+  rpc Validate(ValidationRequest) returns (ValidationResult) {}
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message ValidationRequest { string token = 1; }
+
+message ValidationResult { bool valid = 1; }
+
+message AuthToken {
+  string token = 1;
+  string email = 2;
+  int64 expiration = 10;
+}
+
+```
 
 ```go
+// examples/auth/server.go
+
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	"net"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/dgrijalva/jwt-go"
+	pb "github.com/romnn/go-service/examples/auth/gen"
+	"github.com/romnn/go-service/pkg/auth"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+)
+
+// User represents a user
+type User struct {
+	Email          string
+	HashedPassword string
+}
+
+// UserDatabase is a mock user database
+type UserDatabase interface {
+	GetUserByEmail(email string) (*User, error)
+	AddUser(user *User)
+	RemoveUserByEmail(email string) (*User, error)
+}
+
+type userDatabase struct {
+	users map[string]*User
+}
+
+// AddUser adds a user to the database
+func (db *userDatabase) AddUser(user *User) {
+	db.users[user.Email] = user
+}
+
+// RemoveUserByEmail removes a user
+func (db *userDatabase) RemoveUserByEmail(email string) (*User, error) {
+	if user, ok := db.users[email]; ok {
+		delete(db.users, email)
+		return user, nil
+	}
+	return nil, fmt.Errorf("no user with email %q", email)
+}
+
+// GetUserByEmail gets a user
+func (db *userDatabase) GetUserByEmail(email string) (*User, error) {
+	if user, ok := db.users[email]; ok {
+		return user, nil
+	}
+	return nil, fmt.Errorf("no user with email %q", email)
+}
+
+// AuthService ...
+type AuthService struct {
+	pb.UnimplementedAuthServer
+	Authenticator *auth.Authenticator
+	Database      UserDatabase
+}
+
+// Claims encode the JWT token claims
+type Claims struct {
+	UserEmail string `json:"user-email"`
+	jwt.StandardClaims
+}
+
+// GetStandardClaims returns the standard claims that will be set based on the config
+func (claims *Claims) GetStandardClaims() *jwt.StandardClaims {
+	return &claims.StandardClaims
+}
+
+// Validate validates a token
+func (s *AuthService) Validate(ctx context.Context, in *pb.ValidationRequest) (*pb.ValidationResult, error) {
+	valid, token, err := s.Authenticator.Validate(in.GetToken(), &Claims{})
+	if err != nil {
+		log.Println(err)
+		return &pb.ValidationResult{Valid: false}, status.Error(codes.Internal, "Failed to validate token")
+	}
+	if claims, ok := token.Claims.(*Claims); ok && valid {
+		log.Printf("valid authentication claims: %v", claims)
+		return &pb.ValidationResult{Valid: true}, nil
+	}
+	return &pb.ValidationResult{Valid: false}, nil
+}
+
+// Login logs in a user
+func (s *AuthService) Login(ctx context.Context, in *pb.LoginRequest) (*pb.AuthToken, error) {
+	user, err := s.Database.GetUserByEmail(in.GetEmail())
+	if err != nil {
+		log.Println(err)
+		return nil, status.Error(codes.NotFound, "no such user")
+	}
+	if !auth.CheckPasswordHash(in.GetPassword(), user.HashedPassword) {
+		return nil, status.Error(codes.Unauthenticated, "unauthorized")
+	}
+
+	// authenticated
+	token, expireSeconds, err := s.Authenticator.Login(&Claims{
+		UserEmail: user.Email,
+	})
+	if err != nil {
+		log.Println(err)
+		return nil, status.Error(codes.Internal, "error while signing token")
+	}
+	return &pb.AuthToken{
+		Token:      token,
+		Email:      user.Email,
+		Expiration: expireSeconds,
+	}, nil
+}
+
+func main() {
+	listener, err := net.Listen("tcp", ":8080")
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+
+	authenticator := auth.Authenticator{
+		ExpireSeconds: 100,
+		Issuer:        "issuer@example.org",
+		Audience:      "example.org",
+	}
+
+	keyConfig := auth.AuthenticatorKeyConfig{Generate: true}
+	if err := authenticator.SetupKeys(&keyConfig); err != nil {
+		log.Fatalf("failed to setup keys: %v", err)
+	}
+
+	service := AuthService{
+		Authenticator: &authenticator,
+		Database: &userDatabase{
+			users: make(map[string]*User),
+		},
+	}
+
+	server := grpc.NewServer()
+	pb.RegisterAuthServer(server, &service)
+
+	shutdown := make(chan os.Signal)
+	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-shutdown
+		log.Println("shutdown ...")
+		server.GracefulStop()
+		listener.Close()
+	}()
+
+	log.Printf("listening on: %v", listener.Addr())
+	if err := server.Serve(listener); err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
+}
+
+```
+
+##### Example: Reflection
+
+```proto
 // examples/reflect/service.proto
 
 syntax = "proto3";
@@ -128,6 +323,7 @@ func main() {
 		<-shutdown
 		log.Println("shutdown ...")
 		server.GracefulStop()
+    listener.Close()
 	}()
 
 	log.Printf("listening on: %v", listener.Addr())
@@ -151,19 +347,13 @@ Before you get started, make sure you have installed the following tools:
     $ go install golang.org/x/lint/golint
     $ go install github.com/fzipp/gocyclo
 
-**Remember**: To be able to excecute the tools downloaded with `go get`,
-make sure to include `$GOPATH/bin` in your `$PATH`.
-If `echo $GOPATH` does not give you a path make sure to run
-(`export GOPATH="$HOME/go"` to set it). In order for your changes to persist,
-do not forget to add these to your shells `.bashrc`.
-
-With the tools in place, it is strongly advised to install the git commit hooks to make sure checks are passing in CI:
+It is advised to install the git commit hooks to enforce code checks:
 
 ```bash
 inv install-hooks
 ```
 
-You can check if all checks pass at any time:
+To check if all checks pass:
 
 ```bash
 inv pre-commit
@@ -184,8 +374,8 @@ go get -u google.golang.org/grpc/cmd/protoc-gen-go-grpc
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc
 ```
 
-To compile, you can use the provided utility
+To compile, you can use the provided utility:
 
 ```bash
-inv compile-proto
+inv compile-protos
 ```

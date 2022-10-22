@@ -76,8 +76,8 @@ def build(c):
 
 
 @task
-def compile_proto(c):
-    """Build the project"""
+def compile_protos(c):
+    """Compile proto files"""
     from pprint import pprint
 
     services = [
@@ -90,7 +90,8 @@ def compile_proto(c):
         out_dir = proto_path / "gen"
         out_dir.mkdir(parents=True, exist_ok=True)
         print(
-            f"compiling {service.relative_to(ROOT_DIR)} to {out_dir.relative_to(ROOT_DIR)}"
+            f"compiling {service.relative_to(ROOT_DIR)} "
+            + f"to {out_dir.relative_to(ROOT_DIR)}"
         )
         package = (
             f"{service.relative_to(proto_path)}="
@@ -107,7 +108,8 @@ def compile_proto(c):
             "--go-grpc_opt=paths=source_relative",
             str(service),
         ]
-        # pprint(cmd)
+        if False:
+            pprint(cmd)
         c.run(" ".join(cmd))
 
 

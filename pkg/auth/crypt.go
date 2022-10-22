@@ -10,16 +10,19 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
+	"github.com/lestrrat-go/jwx/jwk"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// HashPassword ...
+// HashPassword creates a cryptograhic hash of a password
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	return string(bytes), err
 }
 
-// MustHashPassword ...
+// MustHashPassword creates a cryptographic hash of a password
+//
+// Panics if the password cannot be hashed.
 func MustHashPassword(pw string) string {
 	hashed, err := HashPassword(pw)
 	if err != nil {
@@ -28,13 +31,13 @@ func MustHashPassword(pw string) string {
 	return hashed
 }
 
-// CheckPasswordHash ...
+// CheckPasswordHash compares a password against its hash
 func CheckPasswordHash(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
 }
 
-// JWK ...
+// JWK encodes a JSON web key
 type JWK struct {
 	KID       string `json:"kid"`
 	Algorithm string `json:"alg"`
@@ -43,8 +46,21 @@ type JWK struct {
 	N         string `json:"n"`
 }
 
-// ToJWKS converts a RSA public key to a JSON encoded jwk set
-func ToJWKS(pub *rsa.PublicKey) ([]byte, error) {
+// ToJwks converts a RSA public key to a JWK set
+func ToJwks(pub *rsa.PublicKey) (jwk.Set, error) {
+	jwkJSON, err := ToJwksJson(pub)
+	if err != nil {
+		return nil, err
+	}
+	jwkSet, err := jwk.Parse(jwkJSON)
+	if err != nil {
+		return nil, err
+	}
+	return jwkSet, nil
+}
+
+// ToJwksJson converts a RSA public key to a JSON encoded JWK set
+func ToJwksJson(pub *rsa.PublicKey) ([]byte, error) {
 	// See https://github.com/golang/crypto/blob/master/acme/jws.go#L90
 	// https://tools.ietf.org/html/rfc7518#section-6.3.1
 	n := pub.N
@@ -60,7 +76,7 @@ func ToJWKS(pub *rsa.PublicKey) ([]byte, error) {
 	})
 }
 
-// ToPEM converts a RSA private key to PEM format
+// ToPEM converts a RSA private key into PEM format
 func ToPEM(key *rsa.PrivateKey) []byte {
 	return pem.EncodeToMemory(
 		&pem.Block{
@@ -70,17 +86,17 @@ func ToPEM(key *rsa.PrivateKey) []byte {
 	)
 }
 
-// SignJwt ...
-func (a *Authenticator) SignJwt(claims Claims) (string, error) {
+// SignJwtClaims signs JWT claims
+func (a *Authenticator) SignJwtClaims(claims Claims) (string, error) {
 	expirationTime := time.Now().Add(time.Duration(a.ExpireSeconds) * time.Second)
-	// Add metadata to the the JWT claims, which should already include a user ID
+	// add metadata to the the JWT claims, which should include some user ID
 	sc := claims.GetStandardClaims()
-	// In JWT, the expiry time is expressed as unix milliseconds
+	// expiry time is expressed as unix milliseconds
 	sc.ExpiresAt = expirationTime.Unix()
 	sc.Issuer = a.Issuer
 	sc.Audience = a.Audience
 
-	// Declare the token with the algorithm used for signing, and the claims
+	// create the token
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	token.Header["kid"] = "0"
 	token.Header["alg"] = "RS256"

@@ -4,7 +4,6 @@ package auth
 
 import (
 	context "context"
-
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -14,112 +13,112 @@ import (
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion6
 
-// AuthenticationClient is the client API for Authentication service.
+// AuthClient is the client API for Auth service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type AuthenticationClient interface {
-	Login(ctx context.Context, in *UserLoginRequest, opts ...grpc.CallOption) (*AuthenticationToken, error)
-	Validate(ctx context.Context, in *TokenValidationRequest, opts ...grpc.CallOption) (*TokenValidationResult, error)
+type AuthClient interface {
+	Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*AuthToken, error)
+	Validate(ctx context.Context, in *ValidationRequest, opts ...grpc.CallOption) (*ValidationResult, error)
 }
 
-type authenticationClient struct {
+type authClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewAuthenticationClient(cc grpc.ClientConnInterface) AuthenticationClient {
-	return &authenticationClient{cc}
+func NewAuthClient(cc grpc.ClientConnInterface) AuthClient {
+	return &authClient{cc}
 }
 
-func (c *authenticationClient) Login(ctx context.Context, in *UserLoginRequest, opts ...grpc.CallOption) (*AuthenticationToken, error) {
-	out := new(AuthenticationToken)
-	err := c.cc.Invoke(ctx, "/auth.Authentication/Login", in, out, opts...)
+func (c *authClient) Login(ctx context.Context, in *LoginRequest, opts ...grpc.CallOption) (*AuthToken, error) {
+	out := new(AuthToken)
+	err := c.cc.Invoke(ctx, "/auth.Auth/Login", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *authenticationClient) Validate(ctx context.Context, in *TokenValidationRequest, opts ...grpc.CallOption) (*TokenValidationResult, error) {
-	out := new(TokenValidationResult)
-	err := c.cc.Invoke(ctx, "/auth.Authentication/Validate", in, out, opts...)
+func (c *authClient) Validate(ctx context.Context, in *ValidationRequest, opts ...grpc.CallOption) (*ValidationResult, error) {
+	out := new(ValidationResult)
+	err := c.cc.Invoke(ctx, "/auth.Auth/Validate", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// AuthenticationServer is the server API for Authentication service.
-// All implementations must embed UnimplementedAuthenticationServer
+// AuthServer is the server API for Auth service.
+// All implementations must embed UnimplementedAuthServer
 // for forward compatibility
-type AuthenticationServer interface {
-	Login(context.Context, *UserLoginRequest) (*AuthenticationToken, error)
-	Validate(context.Context, *TokenValidationRequest) (*TokenValidationResult, error)
-	mustEmbedUnimplementedAuthenticationServer()
+type AuthServer interface {
+	Login(context.Context, *LoginRequest) (*AuthToken, error)
+	Validate(context.Context, *ValidationRequest) (*ValidationResult, error)
+	mustEmbedUnimplementedAuthServer()
 }
 
-// UnimplementedAuthenticationServer must be embedded to have forward compatible implementations.
-type UnimplementedAuthenticationServer struct {
+// UnimplementedAuthServer must be embedded to have forward compatible implementations.
+type UnimplementedAuthServer struct {
 }
 
-func (*UnimplementedAuthenticationServer) Login(context.Context, *UserLoginRequest) (*AuthenticationToken, error) {
+func (*UnimplementedAuthServer) Login(context.Context, *LoginRequest) (*AuthToken, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Login not implemented")
 }
-func (*UnimplementedAuthenticationServer) Validate(context.Context, *TokenValidationRequest) (*TokenValidationResult, error) {
+func (*UnimplementedAuthServer) Validate(context.Context, *ValidationRequest) (*ValidationResult, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Validate not implemented")
 }
-func (*UnimplementedAuthenticationServer) mustEmbedUnimplementedAuthenticationServer() {}
+func (*UnimplementedAuthServer) mustEmbedUnimplementedAuthServer() {}
 
-func RegisterAuthenticationServer(s *grpc.Server, srv AuthenticationServer) {
-	s.RegisterService(&_Authentication_serviceDesc, srv)
+func RegisterAuthServer(s *grpc.Server, srv AuthServer) {
+	s.RegisterService(&_Auth_serviceDesc, srv)
 }
 
-func _Authentication_Login_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UserLoginRequest)
+func _Auth_Login_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LoginRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AuthenticationServer).Login(ctx, in)
+		return srv.(AuthServer).Login(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/auth.Authentication/Login",
+		FullMethod: "/auth.Auth/Login",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthenticationServer).Login(ctx, req.(*UserLoginRequest))
+		return srv.(AuthServer).Login(ctx, req.(*LoginRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Authentication_Validate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(TokenValidationRequest)
+func _Auth_Validate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(AuthenticationServer).Validate(ctx, in)
+		return srv.(AuthServer).Validate(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/auth.Authentication/Validate",
+		FullMethod: "/auth.Auth/Validate",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthenticationServer).Validate(ctx, req.(*TokenValidationRequest))
+		return srv.(AuthServer).Validate(ctx, req.(*ValidationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-var _Authentication_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "auth.Authentication",
-	HandlerType: (*AuthenticationServer)(nil),
+var _Auth_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "auth.Auth",
+	HandlerType: (*AuthServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "Login",
-			Handler:    _Authentication_Login_Handler,
+			Handler:    _Auth_Login_Handler,
 		},
 		{
 			MethodName: "Validate",
-			Handler:    _Authentication_Validate_Handler,
+			Handler:    _Auth_Validate_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -11,85 +11,88 @@ import (
 	"syscall"
 
 	"github.com/dgrijalva/jwt-go"
-	goservice "github.com/romnn/go-service"
 	pb "github.com/romnn/go-service/examples/auth/gen"
 	"github.com/romnn/go-service/pkg/auth"
 
-	// "github.com/romnn/flags4urfavecli/flags"
-	// log "github.com/sirupsen/logrus"
-	"github.com/urfave/cli/v2"
-
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// Version will be injected at build time
-var Version string = "Unknown"
-
-// BuildTime will be injected at build time
-var BuildTime string = ""
-
-var server AuthServer
-
-// User ...
+// User represents a user
 type User struct {
-	ID             string
-	Username       string
 	Email          string
 	HashedPassword string
 }
 
-// UserMgmtBackend ...
-type UserMgmtBackend interface {
-	GetUserByEmail(ctx context.Context, email string) (*User, error)
-	AddUser(ctx context.Context, user *User) (*User, error)
-	RemoveUserByEmail(ctx context.Context, email string) (*User, error)
+// UserDatabase is a mock user database
+type UserDatabase interface {
+	GetUserByEmail(email string) (*User, error)
+	AddUser(user *User)
+	RemoveUserByEmail(email string) (*User, error)
 }
 
-// AuthServer ...
-type AuthServer struct {
-	goservice.Service
-	pb.UnimplementedAuthenticationServer
+type userDatabase struct {
+	users map[string]*User
+}
+
+// AddUser adds a user to the database
+func (db *userDatabase) AddUser(user *User) {
+	db.users[user.Email] = user
+}
+
+// RemoveUserByEmail removes a user
+func (db *userDatabase) RemoveUserByEmail(email string) (*User, error) {
+	if user, ok := db.users[email]; ok {
+		delete(db.users, email)
+		return user, nil
+	}
+	return nil, fmt.Errorf("no user with email %q", email)
+}
+
+// GetUserByEmail gets a user
+func (db *userDatabase) GetUserByEmail(email string) (*User, error) {
+	if user, ok := db.users[email]; ok {
+		return user, nil
+	}
+	return nil, fmt.Errorf("no user with email %q", email)
+}
+
+// AuthService ...
+type AuthService struct {
+	pb.UnimplementedAuthServer
 	Authenticator *auth.Authenticator
-	UserBackend   UserMgmtBackend
+	Database      UserDatabase
 }
 
-// Shutdown ...
-func (s *AuthServer) Shutdown() {
-	s.Service.GracefulStop()
-	// Do any additional shutdown here
-}
-
-// MyClaims ...
-type MyClaims struct {
-	UserID string `json:"userid"`
+// Claims encode the JWT token claims
+type Claims struct {
+	UserEmail string `json:"user-email"`
 	jwt.StandardClaims
 }
 
-// GetStandardClaims ...
-func (claims *MyClaims) GetStandardClaims() *jwt.StandardClaims {
-	// the authenticator will use this method to get the standard claims that will be set based on the config
-	// note that it is important to return a pointer to the current claims' standard claims and not any ones
+// GetStandardClaims returns the standard claims that will be set based on the config
+func (claims *Claims) GetStandardClaims() *jwt.StandardClaims {
 	return &claims.StandardClaims
 }
 
-// Validate checks a token if it is valid (e.g. has not expired)
-func (s *AuthServer) Validate(ctx context.Context, in *pb.TokenValidationRequest) (*pb.TokenValidationResult, error) {
-	valid, token, err := s.Authenticator.Validate(in.GetToken(), &MyClaims{})
+// Validate validates a token
+func (s *AuthService) Validate(ctx context.Context, in *pb.ValidationRequest) (*pb.ValidationResult, error) {
+	valid, token, err := s.Authenticator.Validate(in.GetToken(), &Claims{})
 	if err != nil {
 		log.Println(err)
-		return &pb.TokenValidationResult{Valid: false}, status.Error(codes.Internal, "Failed to validate token")
+		return &pb.ValidationResult{Valid: false}, status.Error(codes.Internal, "Failed to validate token")
 	}
-	if claims, ok := token.Claims.(*MyClaims); ok && valid {
+	if claims, ok := token.Claims.(*Claims); ok && valid {
 		log.Printf("valid authentication claims: %v", claims)
-		return &pb.TokenValidationResult{Valid: true}, nil
+		return &pb.ValidationResult{Valid: true}, nil
 	}
-	return &pb.TokenValidationResult{Valid: false}, nil
+	return &pb.ValidationResult{Valid: false}, nil
 }
 
 // Login logs in a user
-func (s *AuthServer) Login(ctx context.Context, in *pb.UserLoginRequest) (*pb.AuthenticationToken, error) {
-	user, err := s.UserBackend.GetUserByEmail(ctx, in.GetEmail())
+func (s *AuthService) Login(ctx context.Context, in *pb.LoginRequest) (*pb.AuthToken, error) {
+	user, err := s.Database.GetUserByEmail(in.GetEmail())
 	if err != nil {
 		log.Println(err)
 		return nil, status.Error(codes.NotFound, "no such user")
@@ -99,109 +102,58 @@ func (s *AuthServer) Login(ctx context.Context, in *pb.UserLoginRequest) (*pb.Au
 	}
 
 	// authenticated
-	token, expireSeconds, err := s.Authenticator.Login(&MyClaims{
-		UserID: user.ID,
+	token, expireSeconds, err := s.Authenticator.Login(&Claims{
+		UserEmail: user.Email,
 	})
 	if err != nil {
 		log.Println(err)
 		return nil, status.Error(codes.Internal, "error while signing token")
 	}
-	return &pb.AuthenticationToken{
+	return &pb.AuthToken{
 		Token:      token,
 		Email:      user.Email,
-		UserId:     user.ID,
 		Expiration: expireSeconds,
 	}, nil
 }
 
 func main() {
+	listener, err := net.Listen("tcp", ":8080")
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+
+	authenticator := auth.Authenticator{
+		ExpireSeconds: 100,
+		Issuer:        "issuer@example.org",
+		Audience:      "example.org",
+	}
+
+	keyConfig := auth.AuthenticatorKeyConfig{Generate: true}
+	if err := authenticator.SetupKeys(&keyConfig); err != nil {
+		log.Fatalf("failed to setup keys: %v", err)
+	}
+
+	service := AuthService{
+		Authenticator: &authenticator,
+		Database: &userDatabase{
+			users: make(map[string]*User),
+		},
+	}
+
+	server := grpc.NewServer()
+	pb.RegisterAuthServer(server, &service)
+
 	shutdown := make(chan os.Signal)
 	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-shutdown
-		server.Shutdown()
+		log.Println("shutdown ...")
+		server.GracefulStop()
+		listener.Close()
 	}()
 
-	cliFlags := []cli.Flag{
-		&cli.IntFlag{
-			Name:    "port",
-			Value:   80,
-			Aliases: []string{"p"},
-			EnvVars: []string{"PORT"},
-			Usage:   "service port",
-		},
+	log.Printf("listening on: %v", listener.Addr())
+	if err := server.Serve(listener); err != nil {
+		log.Fatalf("failed to serve: %v", err)
 	}
-
-	// Add the default set of CLI flags for the authenticator
-	// Of course, you can also define your own flags and manually populate `Authenticator` and `AuthenticatorKeyConfig`
-	cliFlags = append(cliFlags, auth.DefaultCLIFlags(&auth.DefaultCLIFlagsOptions{
-		Issuer:   "issuer@example.org",
-		Audience: "example.org",
-	})...)
-
-	name := "sample authentication service"
-
-	app := &cli.App{
-		Name:  name,
-		Usage: "serves as an example",
-		Flags: cliFlags,
-		Action: func(cliCtx *cli.Context) error {
-			server = AuthServer{
-				Service: goservice.Service{
-					Name:      name,
-					Version:   Version,
-					BuildTime: BuildTime,
-					PostBootstrapHook: func(bs *goservice.Service) error {
-						log.Println("<your app name> (c) <your name>")
-						return nil
-					},
-				},
-				Authenticator: &auth.Authenticator{
-					ExpireSeconds: int64(cliCtx.Int("expire-sec")),
-					Issuer:        cliCtx.String("issuer"),
-					Audience:      cliCtx.String("audience"),
-				},
-			}
-			port := fmt.Sprintf(":%d", cliCtx.Int("port"))
-			listener, err := net.Listen("tcp", port)
-			if err != nil {
-				return fmt.Errorf("failed to listen: %v", err)
-			}
-
-			if err := server.Authenticator.SetupKeys(auth.AuthenticatorKeyConfig{}.Parse(cliCtx)); err != nil {
-				return err
-			}
-			if err := server.Service.BootstrapGrpc(context.Background(), cliCtx, nil); err != nil {
-				return err
-			}
-			return server.Serve(cliCtx, listener)
-		},
-	}
-	err := app.Run(os.Args)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// Serve starts the service
-func (s *AuthServer) Serve(ctx *cli.Context, listener net.Listener) error {
-
-	go func() {
-		log.Println("connecting...")
-		if err := server.Service.Connect(ctx); err != nil {
-			log.Println(err)
-			s.Shutdown()
-		}
-		s.Service.Ready = true
-		s.Service.SetHealthy(true)
-		log.Printf("%s ready at %s", s.Service.Name, listener.Addr())
-	}()
-
-	pb.RegisterAuthenticationServer(s.Service.GrpcServer, s)
-	if err := server.Service.ServeGrpc(listener); err != nil {
-		return err
-	}
-	log.Println("closing socket")
-	listener.Close()
-	return nil
 }

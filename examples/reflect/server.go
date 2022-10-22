@@ -72,6 +72,7 @@ func main() {
 		<-shutdown
 		log.Println("shutdown ...")
 		server.GracefulStop()
+    listener.Close()
 	}()
 
 	log.Printf("listening on: %v", listener.Addr())
