@@ -31,17 +31,10 @@ type ReflectService struct {
 
 func (s *ReflectService) getAnnotations(ctx context.Context) (*pb.Annotations, error) {
 	var annotations pb.Annotations
-	// file := s.Descriptor_ProtoFile
-	// info, ok := reflect.GetMethodInfo(ctx)
 	info, ok := reflect.GetMethodInfo(ctx)
 	if !ok {
 		return &annotations, fmt.Errorf("failed to get method descriptor")
 	}
-	fmt.Printf("info: %v", info)
-	// for name, info := range s.GetServiceInfo() {
-	// file, ok := info.Metadata.(string)
-	// }
-
 	methodOptions := info.Method().Options()
 	if boolValue, ok := proto.GetExtension(methodOptions, pb.E_BoolValue).(bool); ok {
 		annotations.BoolValue = boolValue
@@ -58,44 +51,11 @@ func (s *ReflectService) getAnnotations(ctx context.Context) (*pb.Annotations, e
 // GetNoAnnotations ...
 func (s *ReflectService) GetNoAnnotations(ctx context.Context, req *pb.Empty) (*pb.Annotations, error) {
 	return s.getAnnotations(ctx)
-	// var annotations pb.Annotations
-	// return &annotations, nil
 }
 
 // GetAnnotations ...
 func (s *ReflectService) GetAnnotations(ctx context.Context, req *pb.Empty) (*pb.Annotations, error) {
-	// var annotations pb.Annotations
 	return s.getAnnotations(ctx)
-
-	// file := s.Descriptor_ProtoFile
-	// info, ok := reflect.GetMethodInfo(ctx)
-	// info, ok := reflect.GetMethodInfo(ctx)
-	// if !ok {
-	// 	return &annotations, fmt.Errorf("failed to get method descriptor")
-	// }
-	// fmt.Printf("info: %v", info)
-	// // for name, info := range s.GetServiceInfo() {
-	// // file, ok := info.Metadata.(string)
-	// // }
-
-	// methodOptions := info.Method().Options()
-	// if boolValue, ok := proto.GetExtension(methodOptions, pb.E_BoolValue).(bool); ok {
-	// 	annotations.BoolValue = boolValue
-	// }
-	// if stringValue, ok := proto.GetExtension(methodOptions, pb.E_StringValue).(string); ok {
-	// 	annotations.StringValue = stringValue
-	// }
-	// if intValue, ok := proto.GetExtension(methodOptions, pb.E_IntValue).(string); ok {
-	// 	annotations.IntValue = intValue
-	// }
-	// return &annotations, nil
-
-	// if methodDesc, ok := ctx.Value(gogrpcservice.GrpcMethodDescriptor).(pref.MethodDescriptor); ok {
-	// 	if requireAdmin, ok := proto.GetExtension(methodDesc.Options(), pb.E_RequireAdmin).(bool); ok {
-	// 		return &pb.Resource{Value: fmt.Sprintf("require admin=%t", requireAdmin)}, nil
-	// 	}
-	// }
-	// return &result, status.Error(codes.Internal, "failed to extract grpc method option")
 }
 
 // Serve starts to serve the service

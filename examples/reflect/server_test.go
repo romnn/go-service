@@ -2,20 +2,15 @@ package main
 
 import (
 	"context"
-	// "errors"
-	// "fmt"
-	// "io/ioutil"
 	"net"
 	"testing"
 	"time"
 
-	// "github.com/dgrijalva/jwt-go"
-	// "github.com/romnn/go-grpc-service/auth"
 	pb "github.com/romnn/go-service/examples/reflect/gen"
 	"github.com/romnn/go-service/pkg/grpc/reflect"
-	// log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -33,6 +28,7 @@ func dailerFor(listener *bufconn.Listener) DialerFunc {
 type test struct {
 	conn    *grpc.ClientConn
 	service *ReflectService
+	server  *grpc.Server
 	client  pb.ReflectClient
 }
 
@@ -41,37 +37,22 @@ func (test *test) setup(t *testing.T) *test {
 	t.Parallel()
 
 	listener := bufconn.Listen(bufSize)
-	// test.service, err = setUpAuthServer(t, listener)
-	test.service = &ReflectService{
-		// Authenticator: &auth.Authenticator{
-		// 	ExpireSeconds: 100,
-		// 	Issuer:        "mock-issuer",
-		// 	Audience:      "mock-audience",
-		// },
-		// UserBackend: &MockUserMgmtBackend{},
-	}
+	test.service = &ReflectService{}
+
+	registry := reflect.NewRegistry()
+	test.server = grpc.NewServer(
+		grpc.ChainUnaryInterceptor(reflect.UnaryServerInterceptor(registry)),
+		grpc.ChainStreamInterceptor(reflect.StreamServerInterceptor(registry)),
+	)
+	pb.RegisterReflectServer(test.server, test.service)
+	registry.Load(test.server)
+
 	go func() {
-		registry := reflect.NewRegistry()
-		server := grpc.NewServer(
-			grpc.ChainUnaryInterceptor(reflect.UnaryServerInterceptor(registry)),
-			grpc.ChainStreamInterceptor(reflect.StreamServerInterceptor(registry)),
-		// grpc.MaxRecvMsgSize(maxMsgSize),
-		// grpc.MaxSendMsgSize(maxMsgSize),
-		)
-
-		pb.RegisterReflectServer(server, test.service)
-		registry.Load(server)
-
-		if err := server.Serve(listener); err != nil {
+		if err := test.server.Serve(listener); err != nil {
 			t.Fatalf("failed to serve service: %v", err)
 		}
 	}()
 
-	// if err != nil {
-	// 	t.Fatalf("failed to setup service: %v", err)
-	// }
-
-	// context.Background(),
 	test.conn, err = grpc.Dial(
 		"bufnet",
 		grpc.WithDialer(dailerFor(listener)),
@@ -79,11 +60,6 @@ func (test *test) setup(t *testing.T) *test {
 		grpc.WithTimeout(20*time.Second),
 		grpc.WithBlock(),
 	)
-
-	// test.conn, err = grpc.DialContext(context.Background(), "bufnet", grpc.WithDialer(dailerFor(listener)), grpc.WithInsecure(),
-	// 	grpc.WithTimeout(20*time.Second),
-	// 	grpc.WithBlock(),
-	// )
 	if err != nil {
 		t.Fatalf("failed to dial grpc service: %v", err)
 	}
@@ -96,23 +72,38 @@ func (test *test) teardown() {
 	if test.conn != nil {
 		_ = test.conn.Close()
 	}
-	// test.service.Shutdown()
+	if test.server != nil {
+		test.server.GracefulStop()
+	}
 }
 
-func TestReflect(t *testing.T) {
+func TestReflectNoAnnotations(t *testing.T) {
 	test := new(test).setup(t)
 	defer test.teardown()
 
-	ctx := context.Background()
-	noAnnotations, err := test.client.GetNoAnnotations(ctx, &pb.Empty{})
+	noAnnotations, err := test.client.GetNoAnnotations(context.Background(), &pb.Empty{})
 	if err != nil {
 		t.Fatalf("failed to get annotations: %v", err)
 	}
-	t.Logf("no annotations: %v", noAnnotations)
+	if !proto.Equal(&pb.Annotations{}, noAnnotations) {
+		t.Errorf("not equal: expected %v but got %v", &pb.Annotations{}, noAnnotations)
+	}
+}
 
-	annotations, err := test.client.GetAnnotations(ctx, &pb.Empty{})
+func TestReflectAnnotations(t *testing.T) {
+	test := new(test).setup(t)
+	defer test.teardown()
+
+	annotations, err := test.client.GetAnnotations(context.Background(), &pb.Empty{})
 	if err != nil {
 		t.Fatalf("failed to get annotations: %v", err)
 	}
-	t.Logf("annotations: %v", annotations)
+	expected := &pb.Annotations{
+		BoolValue:   true,
+		StringValue: "Hello World",
+		IntValue:    42,
+	}
+	if !proto.Equal(expected, annotations) {
+		t.Errorf("not equal: expected %v but got %v", expected, annotations)
+	}
 }
