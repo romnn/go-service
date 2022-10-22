@@ -47,7 +47,7 @@ type JWK struct {
 
 // ToJwks converts a RSA public key to a JWK set
 func ToJwks(pub *rsa.PublicKey) (jwk.Set, error) {
-	jwkJSON, err := ToJwksJson(pub)
+	jwkJSON, err := ToJwksJSON(pub)
 	if err != nil {
 		return nil, err
 	}
@@ -58,8 +58,8 @@ func ToJwks(pub *rsa.PublicKey) (jwk.Set, error) {
 	return jwkSet, nil
 }
 
-// ToJwksJson converts a RSA public key to a JSON encoded JWK set
-func ToJwksJson(pub *rsa.PublicKey) ([]byte, error) {
+// ToJwksJSON converts a RSA public key to a JSON encoded JWK set
+func ToJwksJSON(pub *rsa.PublicKey) ([]byte, error) {
 	// See https://github.com/golang/crypto/blob/master/acme/jws.go#L90
 	// https://tools.ietf.org/html/rfc7518#section-6.3.1
 	n := pub.N

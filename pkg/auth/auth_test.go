@@ -1,22 +1,19 @@
 package auth
 
 import (
-	"fmt"
-	"io/ioutil"
 	"testing"
 	"time"
 
-  "github.com/golang-jwt/jwt/v4"
-	// "github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v4"
 )
 
 type testClaims struct {
 	UserID string `json:"user_id"`
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }
 
-func (claims *testClaims) GetStandardClaims() *jwt.StandardClaims {
-	return &claims.StandardClaims
+func (claims *testClaims) GetRegisteredClaims() *jwt.RegisteredClaims {
+	return &claims.RegisteredClaims
 }
 
 type test struct {
@@ -42,7 +39,7 @@ func TestValidatesValidToken(t *testing.T) {
 	test := new(test).setup(t)
 
 	userID := "123"
-	tokenString, expireSeconds, err := test.authenticator.Login(&testClaims{
+	tokenString, err := test.authenticator.SignJwtClaims(&testClaims{
 		UserID: userID,
 	})
 	if err != nil {
@@ -64,7 +61,7 @@ func TestValidatesValidToken(t *testing.T) {
 	}
 
 	// Check that the token no longer validates after it expires
-	expiration := time.Duration(expireSeconds+200) * time.Second
+	expiration := time.Duration(test.authenticator.ExpireSeconds+200) * time.Second
 	at(time.Now().Add(expiration), func() {
 		valid, token, err := test.authenticator.Validate(tokenString, &testClaims{})
 		if err == nil {
@@ -79,7 +76,7 @@ func TestValidatesValidToken(t *testing.T) {
 func TestValidateInvalidTokenFails(t *testing.T) {
 	test := new(test).setup(t)
 
-	valid, token, err = test.authenticator.Validate("invalid-token", &testClaims{})
+	valid, token, err := test.authenticator.Validate("invalid-token", &testClaims{})
 	if err == nil {
 		t.Error("expected error when validating an invalid user token")
 	}

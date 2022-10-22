@@ -55,7 +55,7 @@ func (auth *Authenticator) Validate(tokenString string, claims Claims) (bool, *j
 	return token.Valid, token, nil
 }
 
-// SetupKeys loads keys from files, environment variables or generates a pair of keys
+// SetupKeys loads or generates keys from the config
 func (auth *Authenticator) SetupKeys(config *AuthenticatorKeyConfig) error {
 	var errs = make([]error, 4)
 	if config.Jwks != "" {

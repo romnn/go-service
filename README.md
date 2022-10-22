@@ -12,7 +12,7 @@ Some features:
 - composable authentication using JWT
 - gRPC interceptors for method reflection
 
-##### Example: Authentication
+### Example: Authentication
 
 ```proto
 // examples/auth/service.proto
@@ -57,7 +57,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v4"
 	pb "github.com/romnn/go-service/examples/auth/gen"
 	"github.com/romnn/go-service/pkg/auth"
 
@@ -115,12 +115,13 @@ type AuthService struct {
 // Claims encode the JWT token claims
 type Claims struct {
 	UserEmail string `json:"user-email"`
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }
 
-// GetStandardClaims returns the standard claims that will be set based on the config
-func (claims *Claims) GetStandardClaims() *jwt.StandardClaims {
-	return &claims.StandardClaims
+// GetRegisteredClaims returns the standard claims that will be set automatically
+func (claims *Claims) GetRegisteredClaims() *jwt.RegisteredClaims {
+	// MUST return pointer to registered claims of this struct
+	return &claims.RegisteredClaims
 }
 
 // Validate validates a token
@@ -149,7 +150,7 @@ func (s *AuthService) Login(ctx context.Context, in *pb.LoginRequest) (*pb.AuthT
 	}
 
 	// authenticated
-	token, expireSeconds, err := s.Authenticator.Login(&Claims{
+	token, err := s.Authenticator.SignJwtClaims(&Claims{
 		UserEmail: user.Email,
 	})
 	if err != nil {
@@ -159,7 +160,7 @@ func (s *AuthService) Login(ctx context.Context, in *pb.LoginRequest) (*pb.AuthT
 	return &pb.AuthToken{
 		Token:      token,
 		Email:      user.Email,
-		Expiration: expireSeconds,
+		Expiration: s.Authenticator.ExpireSeconds,
 	}, nil
 }
 
@@ -190,7 +191,7 @@ func main() {
 	server := grpc.NewServer()
 	pb.RegisterAuthServer(server, &service)
 
-	shutdown := make(chan os.Signal)
+	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-shutdown
@@ -207,7 +208,7 @@ func main() {
 
 ```
 
-##### Example: Reflection
+### Example: Reflection
 
 ```proto
 // examples/reflect/service.proto
@@ -274,11 +275,11 @@ type ReflectService struct {
 }
 
 func (s *ReflectService) getAnnotations(ctx context.Context) (*pb.Annotations, error) {
-	var annotations pb.Annotations
 	info, ok := reflect.GetMethodInfo(ctx)
 	if !ok {
-		return &annotations, status.Error(codes.Internal, "failed to get grpc method info")
+		return nil, status.Error(codes.Internal, "failed to get grpc method info")
 	}
+	var annotations pb.Annotations
 	methodOptions := info.Method().Options()
 	if boolValue, ok := proto.GetExtension(methodOptions, pb.E_BoolValue).(bool); ok {
 		annotations.BoolValue = boolValue
@@ -317,13 +318,13 @@ func main() {
 	pb.RegisterReflectServer(server, &service)
 	registry.Load(server)
 
-	shutdown := make(chan os.Signal)
+	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-shutdown
 		log.Println("shutdown ...")
 		server.GracefulStop()
-    listener.Close()
+		listener.Close()
 	}()
 
 	log.Printf("listening on: %v", listener.Addr())

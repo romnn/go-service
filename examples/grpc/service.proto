@@ -1,12 +1,10 @@
 syntax = "proto3";
 package grpc;
 
-message Empty {}
+message Request {}
 
-message Resource {
-    string value = 1;
-}
+message Response { string value = 1; }
 
-service GrpcService {
-  rpc GetResource(Empty) returns (Resource) {} 
+service Grpc {
+  rpc Get(Request) returns (Response) {}
 }

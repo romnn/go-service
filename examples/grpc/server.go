@@ -2,137 +2,114 @@ package main
 
 import (
 	"context"
-	"fmt"
-
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
-	gogrpcservice "github.com/romnn/go-grpc-service"
-	pb "github.com/romnn/go-grpc-service/gen/sample-services"
-
-	"github.com/romnn/flags4urfavecli/flags"
-	log "github.com/sirupsen/logrus"
-	"github.com/urfave/cli/v2"
-	"google.golang.org/protobuf/proto"
-	pref "google.golang.org/protobuf/reflect/protoreflect"
-
+	pb "github.com/romnn/go-service/examples/grpc/gen"
+	"github.com/romnn/go-service/pkg/grpc/reflect"
+	"github.com/romnn/go-service/pkg/jaeger"
+	"github.com/romnn/go-service/pkg/prometheus"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
+
+	grpc_opentracing "github.com/grpc-ecosystem/go-grpc-middleware/tracing/opentracing"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	opentracing "github.com/opentracing/opentracing-go"
+	tracelog "github.com/opentracing/opentracing-go/log"
+	log "github.com/sirupsen/logrus"
 )
 
-// Version will be injected at build time
-var Version string = "Unknown"
-
-// BuildTime will be injected at build time
-var BuildTime string = ""
-
-var server SampleServer
-
-// SampleServer ...
-type SampleServer struct {
-	gogrpcservice.Service
-	pb.UnimplementedSampleServer
-
-	connected bool
+// GrpcService implements the gRPC service
+type GrpcService struct {
+	pb.UnimplementedGrpcServer
+	Health  *health.Server
+	Metrics *http.Server
 }
 
-// Shutdown ...
-func (s *SampleServer) Shutdown() {
-	s.Service.GracefulStop()
-	// Do any additional shutdown here
-}
-
-// GetSecretResource ...
-func (s *SampleServer) GetSecretResource(ctx context.Context, in *pb.Empty) (*pb.Resource, error) {
-	var result pb.Resource
-	if methodDesc, ok := ctx.Value(gogrpcservice.GrpcMethodDescriptor).(pref.MethodDescriptor); ok {
-		if requireAdmin, ok := proto.GetExtension(methodDesc.Options(), pb.E_RequireAdmin).(bool); ok {
-			return &pb.Resource{Value: fmt.Sprintf("require admin=%t", requireAdmin)}, nil
-		}
+// Get returns a sample response
+func (s *GrpcService) Get(ctx context.Context, req *pb.Request) (*pb.Response, error) {
+	info, ok := reflect.GetMethodInfo(ctx)
+	if !ok {
+		return nil, status.Error(codes.Internal, "failed to get grpc method info")
 	}
-	return &result, status.Error(codes.Internal, "failed to extract grpc method option")
+	methodName := string(info.Method().Name())
+	serviceName := string(info.Service().Name())
+	log.Infof("called method %q of service %q", methodName, serviceName)
+
+	span, ctx := opentracing.StartSpanFromContext(ctx, methodName)
+	defer span.Finish()
+
+	s.Health.SetServingStatus(serviceName, healthpb.HealthCheckResponse_SERVING)
+
+	span.SetTag("sample-tag", "test")
+	span.LogFields(tracelog.Object("request", req))
+
+	return &pb.Response{Value: "Hello World"}, nil
 }
 
 func main() {
-	shutdown := make(chan os.Signal)
+	listener, err := net.Listen("tcp", ":8080")
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+
+	megabyte := 1024 * 1024
+	maxMsgSize := 500 * megabyte
+
+	tracer, _, err := jaeger.DefaultJaegerTracer("service-name", "jaeger-agent:3000")
+	if err != nil {
+		log.Fatalf("failed to setup jaeger tracer: %v", err)
+	}
+
+	service := GrpcService{
+		Health:  health.NewServer(),
+		Metrics: prometheus.NewMetricsServer(":9000"),
+	}
+	registry := reflect.NewRegistry()
+
+	unaryInterceptors := []grpc.UnaryServerInterceptor{
+		reflect.UnaryServerInterceptor(registry),
+		grpc_prometheus.UnaryServerInterceptor,
+		grpc_opentracing.UnaryServerInterceptor(grpc_opentracing.WithTracer(tracer)),
+	}
+	streamInterceptors := []grpc.StreamServerInterceptor{
+		reflect.StreamServerInterceptor(registry),
+		grpc_prometheus.StreamServerInterceptor,
+		grpc_opentracing.StreamServerInterceptor(grpc_opentracing.WithTracer(tracer)),
+	}
+	server := grpc.NewServer(
+		grpc.ChainUnaryInterceptor(unaryInterceptors...),
+		grpc.ChainStreamInterceptor(streamInterceptors...),
+		grpc.MaxRecvMsgSize(maxMsgSize),
+		grpc.MaxSendMsgSize(maxMsgSize),
+	)
+	pb.RegisterGrpcServer(server, &service)
+	registry.Load(server)
+
+	healthpb.RegisterHealthServer(server, service.Health)
+
+	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-shutdown
-		server.Shutdown()
+		log.Println("shutdown ...")
+		server.GracefulStop()
+		listener.Close()
+		service.Metrics.Shutdown(context.Background())
 	}()
-
-	cliFlags := []cli.Flag{
-		&flags.LogLevelFlag,
-		&cli.IntFlag{
-			Name:    "port",
-			Value:   80,
-			Aliases: []string{"p"},
-			EnvVars: []string{"PORT"},
-			Usage:   "service port",
-		},
-	}
-
-	name := "sample service"
-
-	app := &cli.App{
-		Name:  name,
-		Usage: "serves as an example",
-		Flags: cliFlags,
-		Action: func(cliCtx *cli.Context) error {
-			server = SampleServer{
-				Service: gogrpcservice.Service{
-					Name:      name,
-					Version:   Version,
-					BuildTime: BuildTime,
-					PostBootstrapHook: func(bs *gogrpcservice.Service) error {
-						log.Info("<your app name> (c) <your name>")
-						return nil
-					},
-					ConnectHook: func(bs *gogrpcservice.Service) error {
-						server.connected = true
-						return nil
-					},
-				},
-			}
-			port := fmt.Sprintf(":%d", cliCtx.Int("port"))
-			listener, err := net.Listen("tcp", port)
-			if err != nil {
-				return fmt.Errorf("failed to listen: %v", err)
-			}
-
-			if err := server.Service.BootstrapGrpc(context.Background(), cliCtx, nil); err != nil {
-				return err
-			}
-			return server.Serve(cliCtx, listener)
-		},
-	}
-	err := app.Run(os.Args)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// Serve starts the service
-func (s *SampleServer) Serve(ctx *cli.Context, listener net.Listener) error {
 
 	go func() {
-		log.Info("connecting...")
-		if err := server.Service.Connect(ctx); err != nil {
-			log.Error(err)
-			s.Shutdown()
-		}
-		s.Service.Ready = true
-		s.Service.SetHealthy(true)
-		log.Infof("%s ready at %s", s.Service.Name, listener.Addr())
+		_ = service.Metrics.ListenAndServe()
 	}()
 
-	pb.RegisterSampleServer(s.Service.GrpcServer, s)
-	if err := server.Service.ServeGrpc(listener); err != nil {
-		return err
+	log.Printf("listening on: %v", listener.Addr())
+	if err := server.Serve(listener); err != nil {
+		log.Fatalf("failed to serve: %v", err)
 	}
-	log.Info("closing socket")
-	listener.Close()
-	return nil
 }

@@ -144,7 +144,7 @@ func main() {
 	server := grpc.NewServer()
 	pb.RegisterAuthServer(server, &service)
 
-	shutdown := make(chan os.Signal)
+	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-shutdown

@@ -8,6 +8,7 @@ package gen
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -18,86 +19,86 @@ import (
 // Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
-// GrpcServiceClient is the client API for GrpcService service.
+// GrpcClient is the client API for Grpc service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type GrpcServiceClient interface {
-	GetResource(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Resource, error)
+type GrpcClient interface {
+	Get(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
 }
 
-type grpcServiceClient struct {
+type grpcClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewGrpcServiceClient(cc grpc.ClientConnInterface) GrpcServiceClient {
-	return &grpcServiceClient{cc}
+func NewGrpcClient(cc grpc.ClientConnInterface) GrpcClient {
+	return &grpcClient{cc}
 }
 
-func (c *grpcServiceClient) GetResource(ctx context.Context, in *Empty, opts ...grpc.CallOption) (*Resource, error) {
-	out := new(Resource)
-	err := c.cc.Invoke(ctx, "/grpc.GrpcService/GetResource", in, out, opts...)
+func (c *grpcClient) Get(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error) {
+	out := new(Response)
+	err := c.cc.Invoke(ctx, "/grpc.Grpc/Get", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// GrpcServiceServer is the server API for GrpcService service.
-// All implementations must embed UnimplementedGrpcServiceServer
+// GrpcServer is the server API for Grpc service.
+// All implementations must embed UnimplementedGrpcServer
 // for forward compatibility
-type GrpcServiceServer interface {
-	GetResource(context.Context, *Empty) (*Resource, error)
-	mustEmbedUnimplementedGrpcServiceServer()
+type GrpcServer interface {
+	Get(context.Context, *Request) (*Response, error)
+	mustEmbedUnimplementedGrpcServer()
 }
 
-// UnimplementedGrpcServiceServer must be embedded to have forward compatible implementations.
-type UnimplementedGrpcServiceServer struct {
+// UnimplementedGrpcServer must be embedded to have forward compatible implementations.
+type UnimplementedGrpcServer struct {
 }
 
-func (UnimplementedGrpcServiceServer) GetResource(context.Context, *Empty) (*Resource, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetResource not implemented")
+func (UnimplementedGrpcServer) Get(context.Context, *Request) (*Response, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
 }
-func (UnimplementedGrpcServiceServer) mustEmbedUnimplementedGrpcServiceServer() {}
+func (UnimplementedGrpcServer) mustEmbedUnimplementedGrpcServer() {}
 
-// UnsafeGrpcServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to GrpcServiceServer will
+// UnsafeGrpcServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to GrpcServer will
 // result in compilation errors.
-type UnsafeGrpcServiceServer interface {
-	mustEmbedUnimplementedGrpcServiceServer()
+type UnsafeGrpcServer interface {
+	mustEmbedUnimplementedGrpcServer()
 }
 
-func RegisterGrpcServiceServer(s grpc.ServiceRegistrar, srv GrpcServiceServer) {
-	s.RegisterService(&GrpcService_ServiceDesc, srv)
+func RegisterGrpcServer(s grpc.ServiceRegistrar, srv GrpcServer) {
+	s.RegisterService(&Grpc_ServiceDesc, srv)
 }
 
-func _GrpcService_GetResource_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Empty)
+func _Grpc_Get_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Request)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GrpcServiceServer).GetResource(ctx, in)
+		return srv.(GrpcServer).Get(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/grpc.GrpcService/GetResource",
+		FullMethod: "/grpc.Grpc/Get",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GrpcServiceServer).GetResource(ctx, req.(*Empty))
+		return srv.(GrpcServer).Get(ctx, req.(*Request))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// GrpcService_ServiceDesc is the grpc.ServiceDesc for GrpcService service.
+// Grpc_ServiceDesc is the grpc.ServiceDesc for Grpc service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var GrpcService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "grpc.GrpcService",
-	HandlerType: (*GrpcServiceServer)(nil),
+var Grpc_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "grpc.Grpc",
+	HandlerType: (*GrpcServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetResource",
-			Handler:    _GrpcService_GetResource_Handler,
+			MethodName: "Get",
+			Handler:    _Grpc_Get_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

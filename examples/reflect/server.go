@@ -23,11 +23,11 @@ type ReflectService struct {
 }
 
 func (s *ReflectService) getAnnotations(ctx context.Context) (*pb.Annotations, error) {
-	var annotations pb.Annotations
 	info, ok := reflect.GetMethodInfo(ctx)
 	if !ok {
-		return &annotations, status.Error(codes.Internal, "failed to get grpc method info")
+		return nil, status.Error(codes.Internal, "failed to get grpc method info")
 	}
+	var annotations pb.Annotations
 	methodOptions := info.Method().Options()
 	if boolValue, ok := proto.GetExtension(methodOptions, pb.E_BoolValue).(bool); ok {
 		annotations.BoolValue = boolValue
@@ -66,13 +66,13 @@ func main() {
 	pb.RegisterReflectServer(server, &service)
 	registry.Load(server)
 
-	shutdown := make(chan os.Signal)
+	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-shutdown
 		log.Println("shutdown ...")
 		server.GracefulStop()
-    listener.Close()
+		listener.Close()
 	}()
 
 	log.Printf("listening on: %v", listener.Addr())

@@ -4,11 +4,16 @@ repos:
     hooks:
       - id: go-build
       - id: go-fmt
+        exclude: ^.*/gen/.*\.pb\.go$
       - id: go-vet
+        exclude: ^.*/gen/.*\.pb\.go$
       - id: go-lint
+        exclude: ^.*/gen/.*\.pb\.go$
       - id: go-imports
+        exclude: ^.*/gen/.*\.pb\.go$
       - id: go-cyclo
         args: [-over=15]
+        exclude: ^.*/gen/.*\.pb\.go$
 
   - repo: local
     hooks:

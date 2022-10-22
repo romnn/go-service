@@ -59,9 +59,7 @@ func (test *test) setup(t *testing.T) *test {
 
 	listener := bufconn.Listen(bufSize)
 	go func() {
-		if err := test.server.Serve(listener); err != nil {
-			t.Fatalf("failed to serve: %v", err)
-		}
+		_ = test.server.Serve(listener)
 	}()
 
 	test.conn, err = grpc.Dial(
