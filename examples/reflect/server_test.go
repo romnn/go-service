@@ -12,6 +12,7 @@ import (
 	// "github.com/dgrijalva/jwt-go"
 	// "github.com/romnn/go-grpc-service/auth"
 	pb "github.com/romnn/go-service/examples/reflect/gen"
+	"github.com/romnn/go-service/pkg/grpc/reflect"
 	// log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
@@ -50,14 +51,17 @@ func (test *test) setup(t *testing.T) *test {
 		// UserBackend: &MockUserMgmtBackend{},
 	}
 	go func() {
+		registry := reflect.NewRegistry()
 		server := grpc.NewServer(
-		// grpc.ChainUnaryInterceptor(usi...),
-		// grpc.ChainStreamInterceptor(ssi...),
+			grpc.ChainUnaryInterceptor(reflect.UnaryServerInterceptor(registry)),
+			grpc.ChainStreamInterceptor(reflect.StreamServerInterceptor(registry)),
 		// grpc.MaxRecvMsgSize(maxMsgSize),
 		// grpc.MaxSendMsgSize(maxMsgSize),
 		)
 
 		pb.RegisterReflectServer(server, test.service)
+		registry.Load(server)
+
 		if err := server.Serve(listener); err != nil {
 			t.Fatalf("failed to serve service: %v", err)
 		}
@@ -104,9 +108,11 @@ func TestReflect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get annotations: %v", err)
 	}
+	t.Logf("no annotations: %v", noAnnotations)
 
 	annotations, err := test.client.GetAnnotations(ctx, &pb.Empty{})
 	if err != nil {
 		t.Fatalf("failed to get annotations: %v", err)
 	}
+	t.Logf("annotations: %v", annotations)
 }

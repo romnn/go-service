@@ -41,7 +41,7 @@ import (
 const Version = "0.0.11"
 
 var (
-	
+
 	// NotReady ...
 	NotReady   = status.Error(codes.Unavailable, "the service is currently unavailable")
 	megabyte   = 1024 * 1024
@@ -111,26 +111,6 @@ func (bs *Service) GracefulStop() {
 	}
 }
 
-// WrappedServerStream is a thin wrapper around grpc.ServerStream that allows modifying context.
-type WrappedServerStream struct {
-	grpc.ServerStream
-	// WrappedContext is the wrapper's own Context. You can assign it.
-	WrappedContext context.Context
-}
-
-// Context returns the wrapper's WrappedContext, overwriting the nested grpc.ServerStream.Context()
-func (w *WrappedServerStream) Context() context.Context {
-	return w.WrappedContext
-}
-
-// WrapServerStream returns a ServerStream that has the ability to overwrite context.
-func WrapServerStream(stream grpc.ServerStream) *WrappedServerStream {
-	if existing, ok := stream.(*WrappedServerStream); ok {
-		return existing
-	}
-	return &WrappedServerStream{ServerStream: stream, WrappedContext: stream.Context()}
-}
-
 // Bootstrap ...
 func (bs *Service) Bootstrap(cliCtx *cli.Context) error {
 	if bs.ShortName == "" {
@@ -145,12 +125,12 @@ func (bs *Service) Bootstrap(cliCtx *cli.Context) error {
 }
 
 func (bs *Service) grpcUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
-  // bs.injectMethodDescriptors(ctx, info.FullMethod)
+	// bs.injectMethodDescriptors(ctx, info.FullMethod)
 	return handler(ctx, req)
 }
 
 func (bs *Service) grpcStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-  // bs.injectMethodDescriptors(ss.Context(), info.FullMethod)
+	// bs.injectMethodDescriptors(ss.Context(), info.FullMethod)
 	wss := WrapServerStream(ss)
 	wss.WrappedContext = ss.Context()
 	return handler(srv, wss)
