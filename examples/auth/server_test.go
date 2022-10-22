@@ -18,7 +18,6 @@ import (
 )
 
 const (
-	parallel = false
 	bufSize  = 1024 * 1024
 )
 
@@ -100,10 +99,9 @@ type test struct {
 }
 
 func (test *test) setup(t *testing.T) *test {
+  t.Parallel()
+
 	var err error
-	if parallel {
-		t.Parallel()
-	}
 	// This wil disable the application logger
 	log.SetOutput(ioutil.Discard)
 

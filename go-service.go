@@ -1,4 +1,4 @@
-package gogrpcservice
+package goservice
 
 import (
 	"context"
@@ -21,8 +21,8 @@ import (
 	"github.com/uber/jaeger-lib/metrics/prometheus"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
-	pref "google.golang.org/protobuf/reflect/protoreflect"
-	preg "google.golang.org/protobuf/reflect/protoregistry"
+	// pref "google.golang.org/protobuf/reflect/protoreflect"
+	// preg "google.golang.org/protobuf/reflect/protoregistry"
 
 	jaegermw "github.com/labstack/echo-contrib/jaegertracing"
 	prommw "github.com/labstack/echo-contrib/prometheus"
@@ -40,14 +40,8 @@ import (
 // Version is incremented using bump2version
 const Version = "0.0.11"
 
-// GrpcMethodName ...
-type GrpcMethodName string
-type grpcMethodDescriptor string
-
 var (
-	// GrpcMethodDescriptor ...
-	GrpcMethodDescriptor = grpcMethodDescriptor("methodDesc")
-
+	
 	// NotReady ...
 	NotReady   = status.Error(codes.Unavailable, "the service is currently unavailable")
 	megabyte   = 1024 * 1024
@@ -88,7 +82,7 @@ type Service struct {
 	JaegerSamplingServerURL string
 
 	tracingSetup sync.WaitGroup
-	methods      map[GrpcMethodName]pref.MethodDescriptor
+	// methods      map[GrpcMethodName]pref.MethodDescriptor
 }
 
 // GracefulStop ...
@@ -150,22 +144,15 @@ func (bs *Service) Bootstrap(cliCtx *cli.Context) error {
 	return nil
 }
 
-func (bs *Service) injectMethodDescriptors(ctx context.Context, method string) context.Context {
-	methodName := GrpcMethodName(method)
-	if methodDesc, ok := bs.methods[methodName]; ok {
-		// Add method descriptor to context
-		return context.WithValue(ctx, GrpcMethodDescriptor, methodDesc)
-	}
-	return ctx
-}
-
 func (bs *Service) grpcUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
-	return handler(bs.injectMethodDescriptors(ctx, info.FullMethod), req)
+  // bs.injectMethodDescriptors(ctx, info.FullMethod)
+	return handler(ctx, req)
 }
 
 func (bs *Service) grpcStreamInterceptor(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+  // bs.injectMethodDescriptors(ss.Context(), info.FullMethod)
 	wss := WrapServerStream(ss)
-	wss.WrappedContext = bs.injectMethodDescriptors(ss.Context(), info.FullMethod)
+	wss.WrappedContext = ss.Context()
 	return handler(srv, wss)
 }
 
@@ -194,7 +181,7 @@ func (bs *Service) BootstrapGrpc(ctx context.Context, cliCtx *cli.Context, opts 
 		ssi = append(ssi, opts.SSI...)
 	}
 
-	bs.methods = make(map[GrpcMethodName]pref.MethodDescriptor)
+	// bs.methods = make(map[GrpcMethodName]pref.MethodDescriptor)
 	bs.GrpcServer = grpc.NewServer(
 		grpc.ChainUnaryInterceptor(usi...),
 		grpc.ChainStreamInterceptor(ssi...),
@@ -206,33 +193,7 @@ func (bs *Service) BootstrapGrpc(ctx context.Context, cliCtx *cli.Context, opts 
 	return bs.Bootstrap(cliCtx)
 }
 
-// InspectService injects metadata about the GPRC service to be used for tracing
-func (bs *Service) InspectService() error {
-	// At this point, the service is registered and we can inspect the services
-	for name, info := range bs.GrpcServer.GetServiceInfo() {
-		file, ok := info.Metadata.(string)
-		if !ok {
-			return fmt.Errorf("service %q has unexpected metadata: expecting a string; got %v", name, info.Metadata)
-		}
-		fileDesc, err := preg.GlobalFiles.FindFileByPath(file)
-		if err != nil {
-			return err
-		}
-		services := fileDesc.Services()
-		for i := 0; i < services.Len(); i++ {
-			service := services.Get(i)
-			methods := service.Methods()
-			for i := 0; i < methods.Len(); i++ {
-				method := methods.Get(i)
-				methodName := GrpcMethodName(fmt.Sprintf("/%s/%s", service.FullName(), method.Name()))
-				bs.methods[methodName] = method
-			}
-		}
-	}
-	return nil
-}
-
-// ServeGrpc serves an http service
+// ServeHTTP serves an http service
 func (bs *Service) ServeHTTP(listener net.Listener) error {
 	bs.tracingSetup.Wait()
 
@@ -251,9 +212,9 @@ func (bs *Service) ServeHTTP(listener net.Listener) error {
 // ServeGrpc serves a grpc service
 func (bs *Service) ServeGrpc(listener net.Listener) error {
 	bs.tracingSetup.Wait()
-	if err := bs.InspectService(); err != nil {
-		return err
-	}
+	// if err := bs.InspectService(); err != nil {
+	// 	return err
+	// }
 	return bs.GrpcServer.Serve(listener)
 }
 
@@ -384,35 +345,6 @@ func (bs *Service) Connect(cliCtx *cli.Context) error {
 		return bs.ConnectHook(bs)
 	}
 	return nil
-}
-
-// DialOptions ...
-type DialOptions struct {
-	TimeoutSec int
-}
-
-// Dial connects to an external GRPC service
-func (bs *Service) Dial(ctx context.Context, host string, port uint, path string, opts *DialOptions) (*grpc.ClientConn, error) {
-	if opts == nil {
-		opts = &DialOptions{TimeoutSec: 5}
-	}
-	return grpc.Dial(
-		fmt.Sprintf("%s:%d%s", host, port, path),
-		grpc.WithInsecure(),
-		grpc.WithBlock(),
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize), grpc.MaxCallSendMsgSize(maxMsgSize)),
-		grpc.WithTimeout(time.Duration(5+opts.TimeoutSec)*time.Second),
-		// prometheus
-		grpc.WithUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
-		grpc.WithStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
-		// tracing
-		grpc.WithStreamInterceptor(grpc_middleware.ChainStreamClient(
-			grpc_opentracing.StreamClientInterceptor(grpc_opentracing.WithTracer(bs.Tracer)),
-		)),
-		grpc.WithUnaryInterceptor(grpc_middleware.ChainUnaryClient(
-			grpc_opentracing.UnaryClientInterceptor(grpc_opentracing.WithTracer(bs.Tracer)),
-		)),
-	)
 }
 
 // ConfigureLogging ...

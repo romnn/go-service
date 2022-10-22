@@ -1,9 +1,9 @@
-## go-grpc-service
+## go-service
 
-[![Build Status](https://github.com/romnn/go-grpc-service/workflows/test/badge.svg)](https://github.com/romnn/go-grpc-service/actions)
-[![GitHub](https://img.shields.io/github/license/romnn/go-grpc-service)](https://github.com/romnn/go-grpc-service)
-[![GoDoc](https://godoc.org/github.com/romnn/go-grpc-service?status.svg)](https://godoc.org/github.com/romnn/go-grpc-service)  [![Test Coverage](https://codecov.io/gh/romnn/go-grpc-service/branch/master/graph/badge.svg)](https://codecov.io/gh/romnn/go-grpc-service)
-[![Release](https://img.shields.io/github/release/romnn/go-grpc-service)](https://github.com/romnn/go-grpc-service/releases/latest)
+[![Build Status](https://github.com/romnn/go-service/workflows/test/badge.svg)](https://github.com/romnn/go-service/actions)
+[![GitHub](https://img.shields.io/github/license/romnn/go-service)](https://github.com/romnn/go-service)
+[![GoDoc](https://godoc.org/github.com/romnn/go-service?status.svg)](https://godoc.org/github.com/romnn/go-service)  [![Test Coverage](https://codecov.io/gh/romnn/go-service/branch/master/graph/badge.svg)](https://codecov.io/gh/romnn/go-service)
+[![Release](https://img.shields.io/github/release/romnn/go-service)](https://github.com/romnn/go-service/releases/latest)
 
 Optionated base service for gRPC (and HTTP) server implementations in `golang` using `google.golang.org/grpc`.
 
@@ -20,18 +20,18 @@ The main additional benefits of this base service include:
 #### Usage as a library
 
 ```golang
-import "github.com/romnn/go-grpc-service"
+import "github.com/romnn/go-service"
 ```
 
 For a full example, check out the sample service in `examples/`:
 
 ```bash
 # check out the sample GRPC service
-go run github.com/romnn/go-grpc-service/examples/sample-grpc-service --port 8080
+go run github.com/romnn/go-service/examples/sample-grpc-service --port 8080
 # check out the sample HTTP service
-go run github.com/romnn/go-grpc-service/examples/sample-http-service --port 8080
+go run github.com/romnn/go-service/examples/sample-http-service --port 8080
 # check out the sample JWT authentication GRPC service
-go run github.com/romnn/go-grpc-service/examples/sample-auth-service --port 8080 --generate
+go run github.com/romnn/go-service/examples/sample-auth-service --port 8080 --generate
 ```
 
 #### References
@@ -79,13 +79,21 @@ bump2version (major | minor | patch)
 git push --follow-tags
 ```
 
-If you want to (re-)generate the sample grpc service, make sure to install `protoc`, `protoc-gen-go` and `protoc-gen-go-grpc`.
+If you want to (re-)generate the sample grpc services, make sure to install `protoc`, `protoc-gen-go` and `protoc-gen-go-grpc`:
 You can then use the provided script:
 ```bash
 apt install -y protobuf-compiler
+brew install protobuf
+
+go get -u google.golang.org/protobuf/cmd/protoc-gen-go
 go install google.golang.org/protobuf/cmd/protoc-gen-go
+
+go get -u google.golang.org/grpc/cmd/protoc-gen-go-grpc
 go install google.golang.org/grpc/cmd/protoc-gen-go-grpc
-invoke compile-proto
+```
+
+```bash
+inv compile-proto
 ```
 
 #### Note

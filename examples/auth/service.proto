@@ -1,6 +1,5 @@
 syntax = "proto3";
-package samples;
-option go_package = "github.com/romnn/go-grpc-service/sample-services;sample_services";
+package auth;
 
 service Authentication {
     rpc Login(UserLoginRequest) returns (AuthenticationToken) {}
