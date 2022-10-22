@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v4"
 	pb "github.com/romnn/go-service/examples/auth/gen"
 	"github.com/romnn/go-service/pkg/auth"
 	"google.golang.org/grpc"

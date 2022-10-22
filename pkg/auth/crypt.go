@@ -9,20 +9,19 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/lestrrat-go/jwx/jwk"
 	"golang.org/x/crypto/bcrypt"
 )
 
 // HashPassword creates a cryptograhic hash of a password
 func HashPassword(password string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	// bcrypt.MaxCost takes very very very long
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost+4)
 	return string(bytes), err
 }
 
-// MustHashPassword creates a cryptographic hash of a password
-//
-// Panics if the password cannot be hashed.
+// MustHashPassword creates a cryptographic hash of a password or panics
 func MustHashPassword(pw string) string {
 	hashed, err := HashPassword(pw)
 	if err != nil {
@@ -86,20 +85,23 @@ func ToPEM(key *rsa.PrivateKey) []byte {
 	)
 }
 
-// SignJwtClaims signs JWT claims
-func (a *Authenticator) SignJwtClaims(claims Claims) (string, error) {
-	expirationTime := time.Now().Add(time.Duration(a.ExpireSeconds) * time.Second)
-	// add metadata to the the JWT claims, which should include some user ID
-	sc := claims.GetStandardClaims()
-	// expiry time is expressed as unix milliseconds
-	sc.ExpiresAt = expirationTime.Unix()
-	sc.Issuer = a.Issuer
-	sc.Audience = a.Audience
+// SignJwtClaims signs JWT claims using RS256 and returns the token string
+func (auth *Authenticator) SignJwtClaims(claims Claims) (string, error) {
+	expirationTime := time.Now().Add(time.Duration(auth.ExpireSeconds) * time.Second)
+
+	// set structured JWT claims set
+	// https://pkg.go.dev/github.com/golang-jwt/jwt/v4#RegisteredClaims
+	// https://datatracker.ietf.org/doc/html/rfc7519#section-4.1
+	reg := claims.GetRegisteredClaims()
+	reg.ExpiresAt = jwt.NewNumericDate(expirationTime)
+	reg.Issuer = auth.Issuer
+	reg.Audience = jwt.ClaimStrings([]string{auth.Audience})
 
 	// create the token
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	token.Header["kid"] = "0"
 	token.Header["alg"] = "RS256"
 
-	return token.SignedString(a.SignKey)
+	// sign the token
+	return token.SignedString(auth.SignKey)
 }

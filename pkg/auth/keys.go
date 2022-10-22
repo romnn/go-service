@@ -3,67 +3,50 @@ package auth
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	// "errors"
 	"fmt"
 	"io/ioutil"
-	"reflect"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/lestrrat-go/jwx/jwk"
 )
 
-// KeyPair is an RSA key pair
-type KeyPair struct {
+// RSAKeyPair is an RSA key pair
+type RSAKeyPair struct {
 	PrivateKey *rsa.PrivateKey
 	PublicKey  *rsa.PublicKey
-	// PublicKey  []byte
-	// PublicKeyPEM []byte
-	// JWKSet       jwk.Set
-	// JWKJson      []byte
 }
 
 // GenerateRSAKeyPair generates an RSA key pair
-func GenerateRSAKeyPair() (*KeyPair, error) {
+func GenerateRSAKeyPair() (*RSAKeyPair, error) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return nil, err
 	}
-	publicKey, ok := privateKey.Public().(*rsa.PublicKey)
+	publicKey := privateKey.Public()
+	publicKeyRSA, ok := publicKey.(*rsa.PublicKey)
 	if !ok {
-		typ := reflect.TypeOf(privateKey.Public())
-		return nil, fmt.Errorf("unexpected key type (expected rsa.PublicKey, got %v)", typ)
+		return nil, fmt.Errorf("expected key type rsa.PublicKey, but got %T", publicKey)
 	}
-	// jwkJSON, err := ToJWKS(pKey)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// jwkSet, err := jwk.Parse(jwkJSON)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	return &KeyPair{
+	return &RSAKeyPair{
 		PrivateKey: privateKey,
-		PublicKey:  publicKey,
-		// PublicKeyPEM: ToPEM(key),
-		// JWKSet:       jwkSet,
-		// JWKJson:      jwkJSON,
+		PublicKey:  publicKeyRSA,
 	}, nil
 }
 
-// ParseSigningKey ...
-func ParseSigningKey(keyData []byte) (*rsa.PrivateKey, error) {
+// ParseSigningKeyFromPEMData parses a private RSA signing key from PEM data
+func ParseSigningKeyFromPEMData(keyData []byte) (*rsa.PrivateKey, error) {
 	return jwt.ParseRSAPrivateKeyFromPEM(keyData)
 }
 
-// LoadSigningKeyFromFile ...
-func LoadSigningKeyFromFile(privateKeyFile string) (*rsa.PrivateKey, error) {
-	data, err := ioutil.ReadFile(privateKeyFile)
+// ParseSigningKeyFromPEMFile parses a private RSA signing key from a PEM file
+func ParseSigningKeyFromPEMFile(path string) (*rsa.PrivateKey, error) {
+	keyData, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read %s: %v", privateKeyFile, err)
+		return nil, fmt.Errorf("failed to read %s: %v", path, err)
 	}
-	key, err := ParseSigningKey(data)
+	key, err := ParseSigningKeyFromPEMData(keyData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse private key PEM file at %s: %v", privateKeyFile, err)
+		return nil, fmt.Errorf("failed to parse %s as private PEM signing key: %v", path, err)
 	}
 	return key, nil
 }

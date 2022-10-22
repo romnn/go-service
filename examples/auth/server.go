@@ -10,7 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v4"
 	pb "github.com/romnn/go-service/examples/auth/gen"
 	"github.com/romnn/go-service/pkg/auth"
 
@@ -68,12 +68,13 @@ type AuthService struct {
 // Claims encode the JWT token claims
 type Claims struct {
 	UserEmail string `json:"user-email"`
-	jwt.StandardClaims
+	jwt.RegisteredClaims
 }
 
-// GetStandardClaims returns the standard claims that will be set based on the config
-func (claims *Claims) GetStandardClaims() *jwt.StandardClaims {
-	return &claims.StandardClaims
+// GetRegisteredClaims returns the standard claims that will be set automatically
+func (claims *Claims) GetRegisteredClaims() *jwt.RegisteredClaims {
+	// MUST return pointer to registered claims of this struct
+	return &claims.RegisteredClaims
 }
 
 // Validate validates a token
@@ -102,7 +103,7 @@ func (s *AuthService) Login(ctx context.Context, in *pb.LoginRequest) (*pb.AuthT
 	}
 
 	// authenticated
-	token, expireSeconds, err := s.Authenticator.Login(&Claims{
+	token, err := s.Authenticator.SignJwtClaims(&Claims{
 		UserEmail: user.Email,
 	})
 	if err != nil {
@@ -112,7 +113,7 @@ func (s *AuthService) Login(ctx context.Context, in *pb.LoginRequest) (*pb.AuthT
 	return &pb.AuthToken{
 		Token:      token,
 		Email:      user.Email,
-		Expiration: expireSeconds,
+		Expiration: s.Authenticator.ExpireSeconds,
 	}, nil
 }
 
