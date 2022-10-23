@@ -42,8 +42,8 @@ func (test *test) setup(t *testing.T) *test {
 		Audience:     "mock-audience",
 	}
 
-	keyConfig := auth.AuthenticatorKeyConfig{Generate: true}
-	if err := authenticator.SetupKeys(&keyConfig); err != nil {
+	config := auth.KeyConfig{Generate: true}
+	if err := authenticator.SetupKeys(&config); err != nil {
 		t.Fatalf("failed to setup keys: %v", err)
 	}
 

@@ -132,7 +132,7 @@ func main() {
 		Audience:     "example.org",
 	}
 
-	keyConfig := auth.AuthenticatorKeyConfig{Generate: true}
+	keyConfig := auth.KeyConfig{Generate: true}
 	if err := authenticator.SetupKeys(&keyConfig); err != nil {
 		log.Fatalf("failed to setup keys: %v", err)
 	}

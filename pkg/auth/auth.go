@@ -57,7 +57,7 @@ func (auth *Authenticator) Validate(tokenString string, claims Claims) (bool, *j
 }
 
 // SetupKeys loads or generates keys from the config
-func (auth *Authenticator) SetupKeys(config *AuthenticatorKeyConfig) error {
+func (auth *Authenticator) SetupKeys(config *KeyConfig) error {
 	var errs = make([]error, 4)
 	if config.Jwks != "" {
 		auth.JwkSet, errs[0] = ParseJwkSet([]byte(config.Jwks))
