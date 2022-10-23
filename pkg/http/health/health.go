@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/labstack/echo/v4"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
@@ -12,6 +11,13 @@ import (
 type Health struct {
 	healthy bool
 	mux     sync.RWMutex
+}
+
+// Healthy returns `true` if the service is healthy, or `false` otherwise
+func (health *Health) Healthy() bool {
+	health.mux.RLock()
+	defer health.mux.RUnlock()
+	return health.healthy
 }
 
 // SetServingStatus updates the serving status
@@ -26,18 +32,14 @@ func (health *Health) SetServingStatus(status healthpb.HealthCheckResponse_Servi
 	}
 }
 
-// Use returns a new health check handler
-func Use(e *echo.Echo, url string) *Health {
-	health := &Health{}
-	e.GET(url, func(c echo.Context) error {
-		health.mux.RLock()
-		defer health.mux.RUnlock()
-		if health.healthy {
-			c.String(http.StatusOK, "ok")
-		} else {
-			c.String(http.StatusServiceUnavailable, "service is not available")
-		}
-		return nil
-	})
-	return health
+// ServeHTTP implements a `http.Handler`
+// implements https://pkg.go.dev/net/http#Handler
+func (health *Health) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if health.Healthy() {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	} else {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		w.Write([]byte("service is not available"))
+	}
 }

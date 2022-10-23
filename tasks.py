@@ -22,12 +22,12 @@ def embed(c):
 
 
 @task
-def test(c):
+def test(c, race=True):
     """Run tests"""
-    cmd = [
-        "go",
-        "test",
-        "-race",
+    cmd = ["go", "test"]
+    if race:
+        cmd.append("-race")
+    cmd += [
         "-coverpkg=all",
         "-coverprofile=coverage.txt",
         "-covermode=atomic",

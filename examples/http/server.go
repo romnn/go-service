@@ -14,7 +14,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	logrusmw "github.com/neko-neko/echo-logrus/v2"
-	"github.com/romnn/go-service/pkg/http/health"
+	"github.com/romnn/go-service/pkg/http/health/echo"
 	"github.com/romnn/go-service/pkg/jaeger"
 	log "github.com/sirupsen/logrus"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -65,7 +65,11 @@ func main() {
 	metrics := prometheusmw.NewPrometheus(serviceName, nil)
 	metrics.Use(e)
 
+	// service.Health = health.Health{}
 	service.Health = health.Use(e, "/healthz")
+
+	// e.GET("/healthz", service.Health.HandlerFunc())
+	// Use(e, "/healthz")
 	service.Server = &http.Server{
 		Handler: e,
 	}
