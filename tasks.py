@@ -18,13 +18,22 @@ def format(c):
 @task
 def embed(c):
     """Embeds the examples"""
-    c.run(f"npx embedme {ROOT_DIR/ 'README.md'}")
+    c.run(f"npx embedme {ROOT_DIR / 'README.md'}")
 
 
 @task
 def test(c):
     """Run tests"""
-    c.run("env GO111MODULE=on go test -v -race ./...")
+    cmd = [
+        "go",
+        "test",
+        "-race",
+        "-coverpkg=all",
+        "-coverprofile=coverage.txt",
+        "-covermode=atomic",
+        "./...",
+    ]
+    c.run(" ".join(cmd))
 
 
 @task
@@ -78,16 +87,21 @@ def build(c):
 @task
 def compile_protos(c):
     """Compile proto files"""
+    import shutil
     from pprint import pprint
 
     services = [
-        ROOT_DIR / "examples" / "grpc" / "service.proto",
-        ROOT_DIR / "examples" / "auth" / "service.proto",
-        ROOT_DIR / "examples" / "reflect" / "service.proto",
+        ROOT_DIR / "examples" / "grpc" / "grpc.proto",
+        ROOT_DIR / "examples" / "auth" / "auth.proto",
+        ROOT_DIR / "examples" / "reflect" / "reflect.proto",
     ]
     for service in services:
         proto_path = service.parent
         out_dir = proto_path / "gen"
+        try:
+            shutil.rmtree(out_dir)
+        except FileNotFoundError:
+            pass
         out_dir.mkdir(parents=True, exist_ok=True)
         print(
             f"compiling {service.relative_to(ROOT_DIR)} "

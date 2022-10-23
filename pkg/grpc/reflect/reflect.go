@@ -10,6 +10,8 @@ import (
 	preg "google.golang.org/protobuf/reflect/protoregistry"
 )
 
+// useful resource: https://github.com/prasek/go-grpc-info
+
 type methodInfoKey struct{}
 
 // Registry provides efficient access to method and service descriptors for grpc servers

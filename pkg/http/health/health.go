@@ -8,13 +8,13 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
-// HealthServer implements a basic health check
+// Health implements a basic health check
 type Health struct {
 	healthy bool
 	mux     sync.RWMutex
 }
 
-// HealthServer updates the serving status
+// SetServingStatus updates the serving status
 func (health *Health) SetServingStatus(status healthpb.HealthCheckResponse_ServingStatus) {
 	health.mux.Lock()
 	defer health.mux.Unlock()

@@ -2,17 +2,16 @@
 // versions:
 // 	protoc-gen-go v1.28.1
 // 	protoc        v3.17.3
-// source: service.proto
+// source: reflect.proto
 
 package gen
 
 import (
-	reflect "reflect"
-	sync "sync"
-
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	descriptorpb "google.golang.org/protobuf/types/descriptorpb"
+	reflect "reflect"
+	sync "sync"
 )
 
 const (
@@ -31,7 +30,7 @@ type Empty struct {
 func (x *Empty) Reset() {
 	*x = Empty{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_service_proto_msgTypes[0]
+		mi := &file_reflect_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -44,7 +43,7 @@ func (x *Empty) String() string {
 func (*Empty) ProtoMessage() {}
 
 func (x *Empty) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[0]
+	mi := &file_reflect_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57,7 +56,7 @@ func (x *Empty) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Empty.ProtoReflect.Descriptor instead.
 func (*Empty) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{0}
+	return file_reflect_proto_rawDescGZIP(), []int{0}
 }
 
 type Annotations struct {
@@ -73,7 +72,7 @@ type Annotations struct {
 func (x *Annotations) Reset() {
 	*x = Annotations{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_service_proto_msgTypes[1]
+		mi := &file_reflect_proto_msgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -86,7 +85,7 @@ func (x *Annotations) String() string {
 func (*Annotations) ProtoMessage() {}
 
 func (x *Annotations) ProtoReflect() protoreflect.Message {
-	mi := &file_service_proto_msgTypes[1]
+	mi := &file_reflect_proto_msgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -99,7 +98,7 @@ func (x *Annotations) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Annotations.ProtoReflect.Descriptor instead.
 func (*Annotations) Descriptor() ([]byte, []int) {
-	return file_service_proto_rawDescGZIP(), []int{1}
+	return file_reflect_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Annotations) GetBoolValue() bool {
@@ -123,14 +122,14 @@ func (x *Annotations) GetIntValue() int32 {
 	return 0
 }
 
-var file_service_proto_extTypes = []protoimpl.ExtensionInfo{
+var file_reflect_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
 		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
 		ExtensionType: (*bool)(nil),
 		Field:         51234,
 		Name:          "reflect.bool_value",
 		Tag:           "varint,51234,opt,name=bool_value",
-		Filename:      "service.proto",
+		Filename:      "reflect.proto",
 	},
 	{
 		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
@@ -138,7 +137,7 @@ var file_service_proto_extTypes = []protoimpl.ExtensionInfo{
 		Field:         51235,
 		Name:          "reflect.string_value",
 		Tag:           "bytes,51235,opt,name=string_value",
-		Filename:      "service.proto",
+		Filename:      "reflect.proto",
 	},
 	{
 		ExtendedType:  (*descriptorpb.MethodOptions)(nil),
@@ -146,24 +145,24 @@ var file_service_proto_extTypes = []protoimpl.ExtensionInfo{
 		Field:         51236,
 		Name:          "reflect.int_value",
 		Tag:           "varint,51236,opt,name=int_value",
-		Filename:      "service.proto",
+		Filename:      "reflect.proto",
 	},
 }
 
 // Extension fields to descriptorpb.MethodOptions.
 var (
 	// optional bool bool_value = 51234;
-	E_BoolValue = &file_service_proto_extTypes[0]
+	E_BoolValue = &file_reflect_proto_extTypes[0]
 	// optional string string_value = 51235;
-	E_StringValue = &file_service_proto_extTypes[1]
+	E_StringValue = &file_reflect_proto_extTypes[1]
 	// optional int32 int_value = 51236;
-	E_IntValue = &file_service_proto_extTypes[2]
+	E_IntValue = &file_reflect_proto_extTypes[2]
 )
 
-var File_service_proto protoreflect.FileDescriptor
+var File_reflect_proto protoreflect.FileDescriptor
 
-var file_service_proto_rawDesc = []byte{
-	0x0a, 0x0d, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12,
+var file_reflect_proto_rawDesc = []byte{
+	0x0a, 0x0d, 0x72, 0x65, 0x66, 0x6c, 0x65, 0x63, 0x74, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12,
 	0x07, 0x72, 0x65, 0x66, 0x6c, 0x65, 0x63, 0x74, 0x1a, 0x20, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65,
 	0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2f, 0x64, 0x65, 0x73, 0x63, 0x72, 0x69,
 	0x70, 0x74, 0x6f, 0x72, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x07, 0x0a, 0x05, 0x45, 0x6d,
@@ -200,24 +199,24 @@ var file_service_proto_rawDesc = []byte{
 }
 
 var (
-	file_service_proto_rawDescOnce sync.Once
-	file_service_proto_rawDescData = file_service_proto_rawDesc
+	file_reflect_proto_rawDescOnce sync.Once
+	file_reflect_proto_rawDescData = file_reflect_proto_rawDesc
 )
 
-func file_service_proto_rawDescGZIP() []byte {
-	file_service_proto_rawDescOnce.Do(func() {
-		file_service_proto_rawDescData = protoimpl.X.CompressGZIP(file_service_proto_rawDescData)
+func file_reflect_proto_rawDescGZIP() []byte {
+	file_reflect_proto_rawDescOnce.Do(func() {
+		file_reflect_proto_rawDescData = protoimpl.X.CompressGZIP(file_reflect_proto_rawDescData)
 	})
-	return file_service_proto_rawDescData
+	return file_reflect_proto_rawDescData
 }
 
-var file_service_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_service_proto_goTypes = []interface{}{
+var file_reflect_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_reflect_proto_goTypes = []interface{}{
 	(*Empty)(nil),                      // 0: reflect.Empty
 	(*Annotations)(nil),                // 1: reflect.Annotations
 	(*descriptorpb.MethodOptions)(nil), // 2: google.protobuf.MethodOptions
 }
-var file_service_proto_depIdxs = []int32{
+var file_reflect_proto_depIdxs = []int32{
 	2, // 0: reflect.bool_value:extendee -> google.protobuf.MethodOptions
 	2, // 1: reflect.string_value:extendee -> google.protobuf.MethodOptions
 	2, // 2: reflect.int_value:extendee -> google.protobuf.MethodOptions
@@ -232,13 +231,13 @@ var file_service_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_service_proto_init() }
-func file_service_proto_init() {
-	if File_service_proto != nil {
+func init() { file_reflect_proto_init() }
+func file_reflect_proto_init() {
+	if File_reflect_proto != nil {
 		return
 	}
 	if !protoimpl.UnsafeEnabled {
-		file_service_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
+		file_reflect_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Empty); i {
 			case 0:
 				return &v.state
@@ -250,7 +249,7 @@ func file_service_proto_init() {
 				return nil
 			}
 		}
-		file_service_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
+		file_reflect_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Annotations); i {
 			case 0:
 				return &v.state
@@ -267,19 +266,19 @@ func file_service_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_service_proto_rawDesc,
+			RawDescriptor: file_reflect_proto_rawDesc,
 			NumEnums:      0,
 			NumMessages:   2,
 			NumExtensions: 3,
 			NumServices:   1,
 		},
-		GoTypes:           file_service_proto_goTypes,
-		DependencyIndexes: file_service_proto_depIdxs,
-		MessageInfos:      file_service_proto_msgTypes,
-		ExtensionInfos:    file_service_proto_extTypes,
+		GoTypes:           file_reflect_proto_goTypes,
+		DependencyIndexes: file_reflect_proto_depIdxs,
+		MessageInfos:      file_reflect_proto_msgTypes,
+		ExtensionInfos:    file_reflect_proto_extTypes,
 	}.Build()
-	File_service_proto = out.File
-	file_service_proto_rawDesc = nil
-	file_service_proto_goTypes = nil
-	file_service_proto_depIdxs = nil
+	File_reflect_proto = out.File
+	file_reflect_proto_rawDesc = nil
+	file_reflect_proto_goTypes = nil
+	file_reflect_proto_depIdxs = nil
 }
