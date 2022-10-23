@@ -62,23 +62,6 @@ def pre_commit(c):
 
 
 @task
-def coverage(c):
-    """Create coverage report"""
-    cmd = [
-        "env",
-        "GO111MODULE=on",
-        "go",
-        "test",
-        "-race",
-        "-coverprofile=coverage.txt",
-        "-coverpkg=all",
-        "-covermode=atomic",
-        "./...",
-    ]
-    c.run(" ".join(cmd))
-
-
-@task
 def build(c):
     """Build the project"""
     c.run("pre-commit run go-build --all-files")

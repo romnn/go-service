@@ -15,7 +15,7 @@ Some features:
 ### Example: Authentication
 
 ```proto
-// examples/auth/service.proto
+// examples/auth/auth.proto
 
 syntax = "proto3";
 package auth;
@@ -211,7 +211,7 @@ func main() {
 ### Example: Reflection
 
 ```proto
-// examples/reflect/service.proto
+// examples/reflect/reflect.proto
 
 syntax = "proto3";
 package reflect;
