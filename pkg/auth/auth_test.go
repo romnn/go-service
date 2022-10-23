@@ -24,9 +24,9 @@ func (test *test) setup(t *testing.T) *test {
 	t.Parallel()
 
 	test.authenticator = &Authenticator{
-		ExpireSeconds: 100,
-		Issuer:        "mock-issuer",
-		Audience:      "mock-audience",
+		ExpiresAfter: 100 * time.Second,
+		Issuer:       "mock-issuer",
+		Audience:     "mock-audience",
 	}
 	keyConfig := AuthenticatorKeyConfig{Generate: true}
 	if err := test.authenticator.SetupKeys(&keyConfig); err != nil {
@@ -61,8 +61,8 @@ func TestValidatesValidToken(t *testing.T) {
 	}
 
 	// Check that the token no longer validates after it expires
-	expiration := time.Duration(test.authenticator.ExpireSeconds+200) * time.Second
-	at(time.Now().Add(expiration), func() {
+	expired := time.Now().Add(test.authenticator.ExpiresAfter).Add(10 * time.Second)
+	at(expired, func() {
 		valid, token, err := test.authenticator.Validate(tokenString, &testClaims{})
 		if err == nil {
 			t.Error("expected error when validating expired user token")

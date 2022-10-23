@@ -87,7 +87,7 @@ func ToPEM(key *rsa.PrivateKey) []byte {
 
 // SignJwtClaims signs JWT claims using RS256 and returns the token string
 func (auth *Authenticator) SignJwtClaims(claims Claims) (string, error) {
-	expirationTime := time.Now().Add(time.Duration(auth.ExpireSeconds) * time.Second)
+	expirationTime := time.Now().Add(auth.ExpiresAfter)
 
 	// set structured JWT claims set
 	// https://pkg.go.dev/github.com/golang-jwt/jwt/v4#RegisteredClaims

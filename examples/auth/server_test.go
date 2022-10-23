@@ -37,9 +37,9 @@ func (test *test) setup(t *testing.T) *test {
 	t.Parallel()
 
 	authenticator := auth.Authenticator{
-		ExpireSeconds: 100,
-		Issuer:        "mock-issuer",
-		Audience:      "mock-audience",
+		ExpiresAfter: 100 * time.Second,
+		Issuer:       "mock-issuer",
+		Audience:     "mock-audience",
 	}
 
 	keyConfig := auth.AuthenticatorKeyConfig{Generate: true}
@@ -179,8 +179,8 @@ func TestValidatesExistingUser(t *testing.T) {
 	assertIsValidToken(t, test.client, &validationReq)
 
 	// the token is invalid after it expires
-	expiration := time.Duration(test.service.Authenticator.ExpireSeconds+200) * time.Second
-	at(time.Now().Add(expiration), func() {
+	expired := time.Now().Add(test.service.Authenticator.ExpiresAfter).Add(10 * time.Second)
+	at(expired, func() {
 		assertIsInvalidToken(t, test.client, &validationReq)
 	})
 }

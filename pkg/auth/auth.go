@@ -4,6 +4,7 @@ import (
 	"crypto/rsa"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/lestrrat-go/jwx/jwk"
@@ -11,9 +12,9 @@ import (
 
 // Authenticator provides convenient methods for signing and validating JWT claims
 type Authenticator struct {
-	Issuer        string
-	Audience      string
-	ExpireSeconds int64
+	Issuer       string
+	Audience     string
+	ExpiresAfter time.Duration
 
 	SignKey *rsa.PrivateKey
 	JwkSet  jwk.Set

@@ -1,6 +1,8 @@
 syntax = "proto3";
 package auth;
 
+import "google/protobuf/timestamp.proto";
+
 service Auth {
   rpc Login(LoginRequest) returns (AuthToken) {}
   rpc Validate(ValidationRequest) returns (ValidationResult) {}
@@ -18,5 +20,5 @@ message ValidationResult { bool valid = 1; }
 message AuthToken {
   string token = 1;
   string email = 2;
-  int64 expiration = 10;
+  google.protobuf.Timestamp expires = 10;
 }

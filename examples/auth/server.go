@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"net"
 	"os"
@@ -13,10 +14,10 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	pb "github.com/romnn/go-service/examples/auth/gen"
 	"github.com/romnn/go-service/pkg/auth"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // User represents a user
@@ -110,10 +111,12 @@ func (s *AuthService) Login(ctx context.Context, in *pb.LoginRequest) (*pb.AuthT
 		log.Println(err)
 		return nil, status.Error(codes.Internal, "error while signing token")
 	}
+
+	expirationTime := time.Now().Add(s.Authenticator.ExpiresAfter)
 	return &pb.AuthToken{
-		Token:      token,
-		Email:      user.Email,
-		Expiration: s.Authenticator.ExpireSeconds,
+		Token:   token,
+		Email:   user.Email,
+		Expires: timestamppb.New(expirationTime),
 	}, nil
 }
 
@@ -124,9 +127,9 @@ func main() {
 	}
 
 	authenticator := auth.Authenticator{
-		ExpireSeconds: 100,
-		Issuer:        "issuer@example.org",
-		Audience:      "example.org",
+		ExpiresAfter: 100 * time.Second,
+		Issuer:       "issuer@example.org",
+		Audience:     "example.org",
 	}
 
 	keyConfig := auth.AuthenticatorKeyConfig{Generate: true}
